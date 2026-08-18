@@ -247,10 +247,65 @@ function parseSchedule(raw) {
   } catch { return []; }
 }
 
-// Placeholder handlers for the webhook mount below; Task 11 replaces
-// these with real DB-backed implementations (whatsapp-store, agent auto-reply).
-function handleInboundWhatsApp(msg) {}
-function handleWhatsAppStatus(st) {}
+// ── WhatsApp threads, inbound handling, agent auto-reply ────
+const waStore = require('./whatsapp-store');
+const wa = require('./whatsapp');
+waStore.init(db);
+
+function findDeptByWhatsapp(waNumber) {
+  const clean = wa.normalizeNumber(waNumber);
+  if (!clean) return null;
+  return db.prepare('SELECT * FROM departments').all()
+    .find(d => wa.normalizeNumber(d.head_whatsapp) === clean) || null;
+}
+
+async function agentAutoReply(thread, inboundBody) {
+  let apiKey = '';
+  try { apiKey = JSON.parse(getSetting('delivery_config') || '{}').anthropic_api_key || ''; } catch {}
+  if (!apiKey) return null;
+  if (waStore.countAgentRepliesToday(thread.id, new Date().toISOString().slice(0, 10)) >= 5) return null;
+
+  const status = getStatusList(today());
+  const dept = thread.department_id ? status.find(s => s.id === thread.department_id) : null;
+  const cfg = getScheduleConfig();
+  const system = `You are CLIO, the daily reporting assistant for the event "${getEventName()}".
+You are replying to a department head on WhatsApp. Reply in 1 to 3 short sentences, friendly and factual.
+Only discuss daily report topics: whether they submitted, the deadline, how to submit. If asked anything else, politely redirect to the report.
+Facts: today is ${today()}. Report generation time: ${cfg.report_time || '23:00'}. Portal: ${process.env.BASE_URL || ''}.
+${dept ? `Their department: ${dept.name}. Submitted today: ${dept.submitted ? 'yes at ' + dept.submitted_at : 'not yet'}.` : ''}
+Submitted so far: ${status.filter(s => s.submitted).length} of ${status.length} departments.`;
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001', max_tokens: 300, system,
+        messages: [{ role: 'user', content: String(inboundBody || '').slice(0, 1000) }]
+      })
+    });
+    if (!r.ok) return null;
+    const data = await r.json();
+    return data.content?.[0]?.text || null;
+  } catch { return null; }
+}
+
+async function handleInboundWhatsApp(msg) {
+  const dept = findDeptByWhatsapp(msg.from);
+  const thread = waStore.upsertThread(wa.normalizeNumber(msg.from), { name: msg.name, departmentId: dept ? dept.id : null });
+  waStore.recordMessage(thread.id, { direction: 'in', body: msg.body, waMessageId: msg.wa_message_id });
+  if (thread.mode !== 'agent') return;
+  const replyText = await agentAutoReply(thread, msg.body);
+  if (!replyText) return;
+  const sent = await wa.sendText(msg.from, replyText);
+  waStore.recordMessage(thread.id, {
+    direction: 'out', body: replyText, sentBy: 'agent',
+    waMessageId: sent ? sent.wa_message_id : null, status: sent ? 'sent' : 'failed'
+  });
+}
+
+function handleWhatsAppStatus(st) {
+  waStore.updateStatus(st.wa_message_id, st.status);
+}
 
 // ── Multer upload ───────────────────────────────────────────
 const upload = multer({
@@ -558,6 +613,36 @@ app.get('/api/admin/download/:date', requireAdmin, (req, res) => {
   const file = path.join(REPORTS_DIR, date, 'daily_report.pptx');
   if (!fs.existsSync(file)) return res.status(404).json({ error: 'report not found' });
   res.download(file, `CLIO_${date}.pptx`);
+});
+
+// ── Admin: WhatsApp threads ──────────────────────────────────
+app.get('/api/admin/whatsapp/threads', requireAdmin, (req, res) => {
+  res.json(waStore.listThreads());
+});
+
+app.get('/api/admin/whatsapp/threads/:id/messages', requireAdmin, (req, res) => {
+  waStore.markRead(req.params.id);
+  res.json(waStore.listMessages(req.params.id));
+});
+
+app.post('/api/admin/whatsapp/threads/:id/mode', requireAdmin, (req, res) => {
+  const mode = req.body.mode === 'human' ? 'human' : 'agent';
+  waStore.setMode(req.params.id, mode);
+  logAction(null, today(), `wa_thread_${req.params.id}_mode_${mode}`);
+  res.json({ success: true, mode });
+});
+
+app.post('/api/admin/whatsapp/threads/:id/reply', requireAdmin, async (req, res) => {
+  const thread = db.prepare('SELECT * FROM whatsapp_threads WHERE id = ?').get(req.params.id);
+  if (!thread) return res.status(404).json({ error: 'thread not found' });
+  const text = (req.body.text || '').trim();
+  if (!text) return res.status(400).json({ error: 'text required' });
+  const sent = await wa.sendText(thread.wa_number, text);
+  const msgId = waStore.recordMessage(thread.id, {
+    direction: 'out', body: text, sentBy: 'human',
+    waMessageId: sent ? sent.wa_message_id : null, status: sent ? 'sent' : 'failed'
+  });
+  res.json({ success: !!sent, message_id: msgId });
 });
 
 // ── Admin: Project Settings ─────────────────────────────────

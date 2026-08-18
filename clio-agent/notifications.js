@@ -1,18 +1,10 @@
-// notifications.js: Email (Nodemailer) + WhatsApp (Twilio) helpers
+// notifications.js: Email (Nodemailer) + WhatsApp (Meta Cloud API) helpers
 // All functions fail-soft: a notification failure must never crash
 // the server or block report generation.
 
 const nodemailer = require('nodemailer');
-
-let twilioClient = null;
-try {
-  if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
-    const twilio = require('twilio');
-    twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-  }
-} catch (err) {
-  console.error('Twilio init failed:', err.message);
-}
+const wa = require('./whatsapp');
+const waStore = require('./whatsapp-store');
 
 // DB accessors, injected by server.js via init()
 let _dbAccessors = {};
@@ -73,26 +65,20 @@ async function sendEmail({ to, subject, html, attachments }) {
   }
 }
 
-async function sendWhatsApp(to, message) {
+async function sendWhatsApp(to, message, { departmentId = null, templateName = null } = {}) {
   if (process.env.WHATSAPP_ENABLED !== 'true') return;
-  if (!twilioClient) {
-    console.warn('[wa] skipped, twilio not configured');
-    return;
-  }
-  if (!to) {
-    console.warn('[wa] skipped, no recipient');
-    return;
-  }
+  if (!to) { console.warn('[wa] skipped, no recipient'); return; }
+  const sent = templateName
+    ? await wa.sendTemplate(to, templateName)
+    : await wa.sendText(to, message);
   try {
-    const res = await twilioClient.messages.create({
-      from: process.env.TWILIO_WHATSAPP_FROM,
-      to: `whatsapp:${to}`,
-      body: message
+    const thread = waStore.upsertThread(wa.normalizeNumber(to), { departmentId });
+    waStore.recordMessage(thread.id, {
+      direction: 'out', body: message, sentBy: 'system',
+      messageType: templateName ? 'template' : 'text', templateName,
+      waMessageId: sent ? sent.wa_message_id : null, status: sent ? 'sent' : 'failed'
     });
-    console.log(`[wa] -> ${to} (${res.sid})`);
-  } catch (err) {
-    console.error(`[wa] failed -> ${to}:`, err.message);
-  }
+  } catch (e) { console.error('[wa] log failed:', e.message); }
 }
 
 // ── Template helpers ────────────────────────────────────────
@@ -160,7 +146,7 @@ Progress: ${submission.overall_progress}%
 Photos uploaded: ${stats.photoCount}
 Activities logged: ${stats.activityCount}
 You're all set for today.`;
-  await sendWhatsApp(dept.head_whatsapp, wa);
+  await sendWhatsApp(dept.head_whatsapp, wa, { departmentId: dept.id });
 }
 
 // Email 2: PM notification on each submission
@@ -213,7 +199,7 @@ ${dept.name}, your daily report is due ${deadline}.
 Submitted so far: ${submittedList.length}/${total} departments
 Open the portal:
 ${process.env.BASE_URL}`;
-  await sendWhatsApp(dept.head_whatsapp, wa);
+  await sendWhatsApp(dept.head_whatsapp, wa, { departmentId: dept.id });
 }
 
 // Email 4: 11PM report delivery

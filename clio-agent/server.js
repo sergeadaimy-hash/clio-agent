@@ -1375,6 +1375,9 @@ async function sendPendingReminders(onlyDeptId = null) {
     if (onlyDeptId != null && p.id !== onlyDeptId) continue;
     const dept = depts.find(d => d.id === p.id);
     if (!dept) continue;
+    // No contact details means nothing can actually go out; do not report
+    // the department as reminded.
+    if (!(dept.head_email || '').trim() && !(dept.head_whatsapp || '').trim()) continue;
     try {
       await notifications.sendReminderToHod(dept, submitted, ctx);
       logAction(dept.id, date, 'reminder_sent');

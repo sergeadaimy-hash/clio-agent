@@ -21,3 +21,6 @@ __pycache__/
 
 # Local settings
 .claude/settings.local.json
+
+# Local knowledge-graph output (graphify skill)
+graphify-out/

@@ -482,7 +482,7 @@ def slide_no_submission(prs, dept, C, font):
 def build(date):
     brand, report = load_config()
     C = Colors(brand)
-    font = brand.get('font_name', 'Calibri') or 'Calibri'
+    font = brand.get('font_family') or brand.get('font_name') or 'Calibri'
 
     departments, submissions = fetch_data(date)
     prs = new_presentation(report)

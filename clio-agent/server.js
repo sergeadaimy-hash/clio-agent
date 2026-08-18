@@ -1323,6 +1323,6 @@ setupCronJobs();
 // ── Start ───────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '3000', 10);
 app.listen(PORT, () => {
-  console.log(`CLIO running at ${process.env.BASE_URL || `http://localhost:${PORT}`}`);
+  console.log(`CLIO listening on port ${PORT}${process.env.BASE_URL ? ` (public: ${process.env.BASE_URL})` : ''}`);
   console.log(`Event: ${getEventName()} | TZ: ${tz()} | Today: ${today()}`);
 });

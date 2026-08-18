@@ -1,77 +1,89 @@
 # CLIO: Event Daily Report Agent
 
 ## What is CLIO
-Automated daily reporting system for live event productions. White-label: every brand element (logo, colors, fonts, company name) is set per-deployment from the admin panel. Department heads (HODs) submit end-of-day progress via a mobile-first web portal. CLIO generates branded PowerPoint reports, emails them to the PM team, and archives all data.
+Automated daily reporting system for live event productions. White-label: every brand element (logo, colors, fonts, company name) is set per-deployment from the admin console. Department heads (HODs) submit end-of-day progress via a mobile-first web portal. CLIO generates branded PowerPoint reports, emails them to the PM team, handles WhatsApp reminders and replies through an AI agent with human takeover, and archives all data.
 
 ## Tech Stack
 - **Backend:** Node.js / Express, SQLite (better-sqlite3), multer for uploads
-- **Frontend:** Vanilla HTML/CSS/JS, Sora font, mobile-first
-- **Reports:** Python (python-pptx, matplotlib, Pillow), generates PPTX from DB data
-- **Notifications:** Nodemailer (SMTP) + Twilio (WhatsApp)
+- **Frontend:** Vanilla HTML/CSS/JS, Sora + JetBrains Mono, mobile-first, no build step
+- **Reports:** Python (python-pptx, matplotlib, Pillow), generates PPTX from DB data; optional imported .pptx template drives the look; LibreOffice + poppler rasterize true previews
+- **Notifications:** Nodemailer (SMTP) + Meta WhatsApp Cloud API (signed webhook, thread store)
 - **Scheduling:** node-cron (in-process, configurable from admin)
-- **AI:** Claude API (Haiku) for content review, polishes grammar, spelling, and writing style
+- **AI:** Claude API (Haiku) for content polish and the WhatsApp auto-reply agent (capped 5/thread/day, 50/day global, per-thread human takeover)
+- **Tests:** node:test (`npm test`) covering the WhatsApp sender and webhook
+- **Hosting:** Railway (nixpacks build in `clio-agent/`), persistent volume via `DATA_DIR`
 
 ## Project Structure
 ```
 clio-agent/
-  server.js              : Express server, API, cron jobs, LLM review endpoint
-  notifications.js       : Email + WhatsApp helpers (reads PM emails from DB)
+  server.js              : Express app, API, cron jobs, WhatsApp handlers, LLM endpoints
+  notifications.js       : Email + WhatsApp notification templates
+  whatsapp.js            : Meta Cloud API sender (fail-soft)
+  whatsapp-webhook.js    : Webhook verification (HMAC), parsing, routes
+  whatsapp-store.js      : whatsapp_threads / whatsapp_messages persistence
+  render-preview.js      : PPTX to PNG rasterization (soffice + pdftoppm, staged atomic cache)
+  nixpacks.toml          : Railway build (Node 20, Python 3.12, LibreOffice, poppler)
+  railway.json           : Railway deploy config
   scripts/
-    generate_report.py   : Daily PPTX generator (reads brand/report config from DB)
-    generate_weekly_report.py
+    generate_report.py   : Daily PPTX (brand tokens or imported template, hierarchy-ordered)
+    generate_weekly_report.py : Weekly PPTX (still v1-era, not template-aware)
   public/
-    index.html           : HOD portal (4 screens: select, readonly, form, success)
-    admin.html           : Admin panel (8 tabs)
-    style.css            : Neutral dark theme by default (#0F172A slate + #3B82F6 blue), all colors overridable from admin Brand tab
-    app.js               : Portal JS logic + LLM review + photo captions
-    assets/              : Empty by default; admin-uploaded logo lands in uploads/brand/logo.png
-  db/
-    schema.sql           : departments, daily_submissions, submission_log, settings
-    clio.db              : SQLite database
-  uploads/               : Photo uploads: {date}/{DEPT_SLUG}/{files}
-  reports/               : Generated PPTX reports: {date}/daily_report.pptx
+    index.html + app.js  : HOD portal: 3-step flow (progress, notes, photos+captions),
+                           localStorage draft autosave, brand token injection
+    admin.html + admin.js: Admin console, 9 sidebar sections, x-admin-password header auth
+    style.css            : Design system: slate dark default, blue interactive accent,
+                           yellow label accent, all overridable from admin Brand
+  db/schema.sql          : IF NOT EXISTS schema; migrations are try/catch ALTERs in server.js
+  test/                  : node:test suites
+docs/
+  design-preview.html    : Approved visual reference ("Control Room Calm")
+  workflow.html          : System map: timeline, actors, endpoints, stores, weak spots
+  superpowers/           : Spec and implementation plan for the v2 build
 ```
 
-## Admin Panel (8 Tabs)
-Password: set via `ADMIN_PASSWORD` in `.env`
-
-| Tab | Purpose |
-|-----|---------|
-| Overview | Submission status, report gen/download, send reminders, logs |
-| Project | Event name, edition/phase |
-| Departments | CRUD departments with HOD name, email, WhatsApp, stream color |
-| Brand | Logo upload, company name, report colors (bg/primary/text/muted/panel), font |
-| Report | Slide structure: enable/disable/reorder 5 slide types, per-slide options, dimensions |
-| Delivery | PM team emails (add/remove), auto-email toggle, Anthropic API key, cloud storage path |
-| Schedule | Configurable reminder time, report generation time, deadline text, timezone display |
-| Archive | Browsable data directory by date > department > photos + raw submission data |
+## Admin Console (9 sections, password via ADMIN_PASSWORD)
+| Section | Purpose |
+|---------|---------|
+| Overview | KPIs, per-department streams with per-dept NUDGE, donut, generate/download, activity log |
+| Departments | CRUD with one-level parent hierarchy, HOD contacts, stream colors |
+| WhatsApp | Threaded inbox, delivery ticks, agent/human mode with Take over, reply composer |
+| Brand | Logo, company name, six colors + label color, font; live preview |
+| Report | Builder: template import (.pptx), slide toggles/reorder/options, live preview, true render, test deck |
+| Delivery | PM emails, sender name, auto-email toggle, Anthropic API key, archive path |
+| Schedule | Reminder + report times, deadline text; cron restarts on save |
+| Archive | Browsable by date: submissions + photos |
+| Project | Event name, edition |
 
 ## Database Tables
-- `departments`: id, name, head_name, head_email, head_whatsapp, stream_color
-- `daily_submissions`: per-dept per-date, holds progress, text, schedule, photos, photo_captions, polished_* fields
+- `departments`: id, name, head contacts, stream_color, parent_id (one level; parents with children act as group headers)
+- `daily_submissions`: per-dept per-date; progress, texts, schedule, photos, photo_captions, version
 - `submission_log`: audit trail
-- `settings`: key/value pairs for event_name, event_edition, brand_config, report_config, pm_emails, delivery_config, schedule_config
+- `settings`: key/value JSON blobs (event, brand_config, report_config, pm_emails, delivery_config, schedule_config)
+- `whatsapp_threads`: per number; department link, mode (agent/human), unread count
+- `whatsapp_messages`: direction, body, template name, wa_message_id (unique, dedups Meta redeliveries), status, sent_by
 
-## Key Features
-- **Photo captions:** HODs describe each photo; captions stored per-submission and displayed under photos in PPTX
-- **LLM content review:** On submission, all text fields (status, highlights, blockers, captions) sent to Claude Haiku API for grammar/spelling/style polishing. Fails gracefully if no API key configured.
-- **Configurable scheduling:** Reminder time and report generation time set from admin (default 21:00 / 23:00). Cron jobs restart when schedule is updated.
-- **Auto-email delivery:** Reports can be auto-emailed to PM team on generation. PM emails managed from admin panel (stored in DB, not .env).
-- **Brand-driven reports:** All PPTX slides use admin-configured brand colors, font, logo. Logo appears on every slide.
-- **Report structure control:** Admin can enable/disable slide types, reorder them, configure per-slide options (show/hide donut chart, badges, timestamps, photos per page, etc.)
+## Key Conventions
+- All department names stored uppercase; seed slugs are uppercase with underscores
+- Photos auto-converted to JPEG via sharp (handles HEIC); captions keyed by original filename
+- Submissions bucketed by local date in configured timezone (default Asia/Riyadh)
+- Runtime data (db, uploads, reports) resolves under `DATA_DIR` when set (Railway volume), app dir otherwise
+- Config flow: Admin UI -> settings table JSON blobs -> server helpers at request time and Python on each run
+- Anthropic API key lives in delivery_config (DB), not .env; all AI paths fail soft without it
+- Report generation is serialized per date (preview renders, test decks, and cron share one lock)
+- Admin API calls send the password as `x-admin-password`; only archive/preview image URLs may use `?password=` (img tags cannot send headers)
+- Writing style: never use em-dashes, en-dashes, or double-hyphen punctuation anywhere (user-wide rule)
 
 ## Development
 ```bash
 cd clio-agent
 npm install && pip3 install -r requirements.txt
 cp .env.example .env  # edit with real credentials
-node server.js        # runs on port 3000
+node server.js        # port 3000
+npm test              # node:test suites
 ```
 
-## Key Conventions
-- All department names stored uppercase
-- Photos auto-converted to JPEG via sharp (handles HEIC)
-- Submissions bucketed by local date in configured timezone (default: Asia/Riyadh)
-- Report generation: Python reads directly from SQLite DB
-- Config flow: Admin UI -> settings table (JSON blobs) -> Python reads on each run
-- Notifications module reads PM emails from DB via injected accessors (falls back to .env)
+## Deployment
+- GitHub: private repo `sergeadaimy-hash/clio-agent` (hash account, never AZ)
+- Railway (hash account): service root `clio-agent`, volume at `/data`, `DATA_DIR=/data`
+- Meta WhatsApp: test number (5 verified recipients), webhook at `{BASE_URL}/api/whatsapp/webhook`
+- Known gaps and their priorities live in `docs/workflow.html`

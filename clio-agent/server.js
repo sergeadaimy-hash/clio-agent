@@ -169,6 +169,15 @@ function getBrandConfig() {
   } catch {}
   return {};
 }
+// CLIO's brain: model for text polish and the WhatsApp agent. Admin can
+// override via delivery_config.ai_model; default is Claude Opus 5.
+function getAiModel() {
+  return getDeliveryConfig().ai_model || 'claude-opus-5';
+}
+// Responses may lead with thinking blocks; always pull the text block.
+function extractText(data) {
+  return data?.content?.find(b => b.type === 'text')?.text || '';
+}
 function getReportConfig() {
   try {
     const raw = getSetting('report_config');
@@ -303,15 +312,23 @@ Do not mention or include any portal URL, the event schedule, submission counts,
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'server-side-fallback-2026-07-01'
+      },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001', max_tokens: 300, system,
+        model: getAiModel(), max_tokens: 1024, system,
+        // Opus 5 thinks by default; effort low keeps these short replies cheap.
+        output_config: { effort: 'low' },
+        fallbacks: 'default',
         messages: [{ role: 'user', content: String(inboundBody || '').slice(0, 1000) }]
       })
     });
     if (!r.ok) return null;
     const data = await r.json();
-    return data.content?.[0]?.text || null;
+    return extractText(data) || null;
   } catch { return null; }
 }
 
@@ -1248,12 +1265,16 @@ Keep all technical terms, department names, and numbers unchanged.`;
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'server-side-fallback-2026-07-01'
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1024,
+        model: getAiModel(),
+        max_tokens: 2048,
         system: systemPrompt,
+        // Opus 5 thinks by default; effort low keeps polish fast and cheap.
+        output_config: { effort: 'low' },
+        fallbacks: 'default',
         messages: [{ role: 'user', content: text.trim() }]
       })
     });
@@ -1264,7 +1285,7 @@ Keep all technical terms, department names, and numbers unchanged.`;
     }
 
     const data = await response.json();
-    const polished = data.content?.[0]?.text || text;
+    const polished = extractText(data) || text;
     res.json({ polished });
   } catch (err) {
     console.error('[llm] review failed:', err.message);

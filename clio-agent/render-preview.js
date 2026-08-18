@@ -57,9 +57,12 @@ async function renderDeckToImages(pptxPath, outDir) {
   try {
     fs.rmSync(stageDir, { recursive: true, force: true });
     fs.mkdirSync(stageDir, { recursive: true });
+    // Isolated profile per invocation: concurrent soffice processes otherwise
+    // contend on the shared user profile lock and hang until timeout.
+    const profileDir = path.join(tmpDir, 'lo-profile');
     await execFileP(
       soffice,
-      ['--headless', '--convert-to', 'pdf', '--outdir', tmpDir, pptxPath],
+      [`-env:UserInstallation=file://${profileDir}`, '--headless', '--convert-to', 'pdf', '--outdir', tmpDir, pptxPath],
       { timeout: 120000 }
     );
     const pdfPath = path.join(tmpDir, path.basename(pptxPath).replace(/\.pptx$/i, '.pdf'));
@@ -71,8 +74,13 @@ async function renderDeckToImages(pptxPath, outDir) {
       ['-png', '-r', '96', pdfPath, path.join(stageDir, 'slide')],
       { timeout: 120000 }
     );
-    fs.rmSync(outDir, { recursive: true, force: true });
+    // Swap via a backup rename so outDir never has a missing-window for
+    // concurrent readers; delete-then-rename would briefly 404 them.
+    const oldDir = outDir + '.old';
+    fs.rmSync(oldDir, { recursive: true, force: true });
+    if (fs.existsSync(outDir)) fs.renameSync(outDir, oldDir);
     fs.renameSync(stageDir, outDir);
+    fs.rmSync(oldDir, { recursive: true, force: true });
     return fs.readdirSync(outDir)
       .filter(f => /^slide.*\.png$/.test(f))
       .sort()

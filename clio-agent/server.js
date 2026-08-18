@@ -1041,7 +1041,20 @@ function runPython(script, args) {
   });
 }
 
-async function runGenerateReport(date) {
+// The generator writes to a fixed per-date path, so concurrent runs for the
+// same date (preview render, test deck, nightly cron) would tear the file.
+// Serialize per date; different dates still run in parallel.
+const reportLocks = new Map();
+function runGenerateReport(date) {
+  const prev = reportLocks.get(date) || Promise.resolve();
+  const run = prev.catch(() => {}).then(() => runGenerateReportUnlocked(date));
+  const tail = run.catch(() => {});
+  reportLocks.set(date, tail);
+  tail.then(() => { if (reportLocks.get(date) === tail) reportLocks.delete(date); });
+  return run;
+}
+
+async function runGenerateReportUnlocked(date) {
   const script = path.join(ROOT, 'scripts', 'generate_report.py');
   const { stdout } = await runPython(script, [date]);
   const report_path = stdout.split('\n').pop().trim();

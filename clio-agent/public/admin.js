@@ -1139,7 +1139,7 @@
       ? sub.captions
       : ['Stage deck progress', 'LED wall install', 'Crew briefing', 'North gate build'];
     const cells = Array.from({ length: perPage }, (_, i) => {
-      const cap = captions[i % captions.length];
+      const cap = escapeHtml(captions[i % captions.length]);
       const meta = [cap, showTs ? '18:42' : null].filter(Boolean).join(' &middot; ');
       return `<div class="pvp-cell"><div class="pvp-img"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M3 17l5-4 3 2.4L16 11l5 5"/></svg></div><div class="pvp-cap">${meta}</div></div>`;
     }).join('');

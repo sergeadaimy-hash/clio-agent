@@ -46,6 +46,12 @@ Design direction as shown in the approved preview: dark, precise show-control ae
 * All other sections keep their current capabilities with the new visual system and clearer forms.
 * Existing admin API preserved; new endpoints only for WhatsApp.
 
+## 2b. Department hierarchy and new placeholder departments (added 2026-08-18 per Serge)
+
+* Placeholder departments (seed defaults and dev data) become: Overlay & Venue Infrastructure, Event Experience, Venue Operations Management, Guest Management, Food & Beverage, Technical Production, Hospitality. Sub-departments under Venue Operations Management: Security, Clean & Waste Management, Traffic Management, Accreditation, Staffing.
+* Model: `departments.parent_id` (nullable, references departments). Every department, parent or child, is a full reporting unit: own HOD, own submission, own report section. Parents with children act as group headers in the portal, admin, and PPTX; a parent with children and no HOD contact simply never submits or gets reminders.
+* Portal: department cards grouped under parent headers. Admin: parent selector in Departments CRUD (only parentless departments are selectable as parents; one level deep). Report: sections ordered parent first, then its children, then the next parent.
+
 ## 3. WhatsApp via Meta Cloud API
 
 ### Sending

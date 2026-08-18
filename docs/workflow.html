@@ -308,7 +308,7 @@ footer .fy { color: var(--accent-2); }
       <span class="chip">DB tables: <b>6</b></span>
       <span class="chip">Cron jobs: <b>2</b></span>
       <span class="chip">Admin sections: <b>9</b></span>
-      <span class="chip">Flagged spots: <b>12</b></span>
+      <span class="chip">Flagged spots: <b>10</b></span>
     </div>
   </header>
 
@@ -654,25 +654,9 @@ footer .fy { color: var(--accent-2); }
       <div class="ws-row">
         <span class="sev med">MEDIUM</span>
         <div class="ws-body">
-          <div class="ws-t">req.ip needs trust proxy on Railway</div>
-          <div class="ws-d">Behind Railway's proxy every request shares one IP, so the per-IP review-text limit collapses to a single bucket.</div>
-          <div class="ws-fix">app.set('trust proxy', 1) in the deploy task, already planned</div>
-        </div>
-      </div>
-      <div class="ws-row">
-        <span class="sev med">MEDIUM</span>
-        <div class="ws-body">
           <div class="ws-t">Weekly generator predates the v2 work</div>
           <div class="ws-d">generate_weekly_report.py hardcodes Calibri, ignores template mode, and does not order by hierarchy. Matters only if weekly reports are used.</div>
           <div class="ws-fix">port the daily generator's brand, template, and ordering logic</div>
-        </div>
-      </div>
-      <div class="ws-row">
-        <span class="sev low">LOW</span>
-        <div class="ws-body">
-          <div class="ws-t">Review-text rate limiter never evicts stale IPs</div>
-          <div class="ws-d">Hit lists are pruned per IP, but old keys stay in the map forever: bounded per IP, unbounded keys.</div>
-          <div class="ws-fix">periodic sweep, or an LRU with a max key count</div>
         </div>
       </div>
       <div class="ws-row">

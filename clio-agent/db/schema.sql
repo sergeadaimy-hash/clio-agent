@@ -4,7 +4,8 @@ CREATE TABLE IF NOT EXISTS departments (
   head_name TEXT,
   head_email TEXT,
   head_whatsapp TEXT,
-  stream_color TEXT DEFAULT '#3B82F6'
+  stream_color TEXT DEFAULT '#3B82F6',
+  parent_id INTEGER REFERENCES departments(id)
 );
 
 CREATE TABLE IF NOT EXISTS daily_submissions (

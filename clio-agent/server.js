@@ -40,31 +40,55 @@ try {
   db.exec('ALTER TABLE daily_submissions ADD COLUMN polished_blockers TEXT');
   db.exec('ALTER TABLE daily_submissions ADD COLUMN polished_photo_captions TEXT');
 } catch (e) { /* columns already exist */ }
+try {
+  db.exec('ALTER TABLE departments ADD COLUMN parent_id INTEGER');
+} catch (e) { /* column already exists */ }
 
-// Seed departments on first run
+// Seed departments on first run. Flat array with an optional `parent` field
+// (parent referenced by name). One level deep: a child never has children.
 const DEFAULT_DEPARTMENTS = [
-  { name: 'STAGE',          slug: 'STAGE',          color: '#F87171' },
-  { name: 'LIGHTING',       slug: 'LIGHTING',       color: '#FBBF24' },
-  { name: 'AV',             slug: 'AV',             color: '#60A5FA' },
-  { name: 'SCENIC',         slug: 'SCENIC',         color: '#34D399' },
-  { name: 'RIGGING',        slug: 'RIGGING',        color: '#A78BFA' },
-  { name: 'SHOW DIRECTION', slug: 'SHOW_DIRECTION', color: '#F472B6' },
-  { name: 'LOGISTICS',      slug: 'LOGISTICS',      color: '#FB923C' }
+  { name: 'OVERLAY & VENUE INFRASTRUCTURE', slug: 'OVERLAY_VENUE_INFRASTRUCTURE', color: '#F97316' },
+  { name: 'EVENT EXPERIENCE',               slug: 'EVENT_EXPERIENCE',             color: '#A78BFA' },
+  { name: 'VENUE OPERATIONS MANAGEMENT',    slug: 'VENUE_OPERATIONS_MANAGEMENT',  color: '#3B82F6' },
+  { name: 'SECURITY',                       slug: 'SECURITY',                     color: '#60A5FA', parent: 'VENUE OPERATIONS MANAGEMENT' },
+  { name: 'CLEAN & WASTE MANAGEMENT',       slug: 'CLEAN_WASTE_MANAGEMENT',       color: '#34D399', parent: 'VENUE OPERATIONS MANAGEMENT' },
+  { name: 'TRAFFIC MANAGEMENT',             slug: 'TRAFFIC_MANAGEMENT',           color: '#FBBF24', parent: 'VENUE OPERATIONS MANAGEMENT' },
+  { name: 'ACCREDITATION',                  slug: 'ACCREDITATION',                color: '#F472B6', parent: 'VENUE OPERATIONS MANAGEMENT' },
+  { name: 'STAFFING',                       slug: 'STAFFING',                     color: '#22D3EE', parent: 'VENUE OPERATIONS MANAGEMENT' },
+  { name: 'GUEST MANAGEMENT',               slug: 'GUEST_MANAGEMENT',             color: '#EAB308' },
+  { name: 'FOOD & BEVERAGE',                slug: 'FOOD_BEVERAGE',                color: '#FB923C' },
+  { name: 'TECHNICAL PRODUCTION',           slug: 'TECHNICAL_PRODUCTION',         color: '#818CF8' },
+  { name: 'HOSPITALITY',                    slug: 'HOSPITALITY',                  color: '#2DD4BF' }
 ];
 
 const deptCount = db.prepare('SELECT COUNT(*) AS c FROM departments').get().c;
 if (deptCount === 0) {
   const insert = db.prepare(`
-    INSERT INTO departments (name, head_name, head_email, head_whatsapp, stream_color)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO departments (name, head_name, head_email, head_whatsapp, stream_color, parent_id)
+    VALUES (?, ?, ?, ?, ?, ?)
   `);
-  for (const d of DEFAULT_DEPARTMENTS) {
+  const idByName = {};
+  // Pass 1: parentless departments first, so children can resolve parent_id.
+  for (const d of DEFAULT_DEPARTMENTS.filter(d => !d.parent)) {
+    const info = insert.run(
+      d.name,
+      `${d.name} HOD`,
+      process.env[`DEPT_EMAIL_${d.slug}`] || '',
+      process.env[`DEPT_WHATSAPP_${d.slug}`] || '',
+      d.color,
+      null
+    );
+    idByName[d.name] = info.lastInsertRowid;
+  }
+  // Pass 2: children, resolved against their parent's id.
+  for (const d of DEFAULT_DEPARTMENTS.filter(d => d.parent)) {
     insert.run(
       d.name,
       `${d.name} HOD`,
       process.env[`DEPT_EMAIL_${d.slug}`] || '',
       process.env[`DEPT_WHATSAPP_${d.slug}`] || '',
-      d.color
+      d.color,
+      idByName[d.parent] || null
     );
   }
   console.log(`[db] seeded ${DEFAULT_DEPARTMENTS.length} departments`);
@@ -194,6 +218,7 @@ function getStatusList(date) {
       id: d.id,
       name: d.name,
       stream_color: d.stream_color,
+      parent_id: d.parent_id,
       submitted: !!sub,
       submitted_at: sub ? sub.submitted_at : null,
       overall_progress: sub ? sub.overall_progress : 0
@@ -588,19 +613,43 @@ app.get('/api/admin/departments', requireAdmin, (req, res) => {
   }
 });
 
+// Validate a parent_id for one-level-deep hierarchy. Returns an error string
+// on violation, or null when the value is acceptable. `deptId` is the id of
+// the department being written (null for a new department) so a self-parent
+// or a parent-with-children check can exclude the row being edited.
+function validateParentId(parent_id, deptId) {
+  if (parent_id === undefined || parent_id === null || parent_id === '') return null;
+  const pid = Number(parent_id);
+  if (!Number.isInteger(pid)) return 'parent_id must be an integer';
+  if (deptId != null && pid === Number(deptId)) return 'a department cannot be its own parent';
+  const parent = db.prepare('SELECT * FROM departments WHERE id = ?').get(pid);
+  if (!parent) return 'parent_id does not reference an existing department';
+  if (parent.parent_id != null) return 'parent_id must reference a top-level department (one level of nesting only)';
+  return null;
+}
+
+// A department that already has children cannot itself be given a parent.
+function hasChildren(deptId) {
+  const row = db.prepare('SELECT COUNT(*) AS c FROM departments WHERE parent_id = ?').get(deptId);
+  return row.c > 0;
+}
+
 app.post('/api/admin/departments', requireAdmin, (req, res) => {
   try {
-    const { name, head_name, head_email, head_whatsapp, stream_color } = req.body;
+    const { name, head_name, head_email, head_whatsapp, stream_color, parent_id } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'name is required' });
+    const parentErr = validateParentId(parent_id, null);
+    if (parentErr) return res.status(400).json({ error: parentErr });
     const info = db.prepare(`
-      INSERT INTO departments (name, head_name, head_email, head_whatsapp, stream_color)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO departments (name, head_name, head_email, head_whatsapp, stream_color, parent_id)
+      VALUES (?, ?, ?, ?, ?, ?)
     `).run(
       name.trim().toUpperCase(),
       head_name || `${name.trim()} HOD`,
       head_email || '',
       head_whatsapp || '',
-      stream_color || '#3B82F6'
+      stream_color || '#3B82F6',
+      parent_id ? Number(parent_id) : null
     );
     logAction(info.lastInsertRowid, today(), 'department_created');
     const dept = db.prepare('SELECT * FROM departments WHERE id = ?').get(info.lastInsertRowid);
@@ -614,9 +663,18 @@ app.put('/api/admin/departments/:id', requireAdmin, (req, res) => {
   try {
     const dept = db.prepare('SELECT * FROM departments WHERE id = ?').get(req.params.id);
     if (!dept) return res.status(404).json({ error: 'department not found' });
-    const { name, head_name, head_email, head_whatsapp, stream_color } = req.body;
+    const { name, head_name, head_email, head_whatsapp, stream_color, parent_id } = req.body;
+
+    if (parent_id !== undefined) {
+      const parentErr = validateParentId(parent_id, dept.id);
+      if (parentErr) return res.status(400).json({ error: parentErr });
+      if (parent_id && hasChildren(dept.id)) {
+        return res.status(400).json({ error: 'a department with children cannot be given a parent' });
+      }
+    }
+
     db.prepare(`
-      UPDATE departments SET name = ?, head_name = ?, head_email = ?, head_whatsapp = ?, stream_color = ?
+      UPDATE departments SET name = ?, head_name = ?, head_email = ?, head_whatsapp = ?, stream_color = ?, parent_id = ?
       WHERE id = ?
     `).run(
       name !== undefined ? name.trim().toUpperCase() : dept.name,
@@ -624,6 +682,7 @@ app.put('/api/admin/departments/:id', requireAdmin, (req, res) => {
       head_email !== undefined ? head_email : dept.head_email,
       head_whatsapp !== undefined ? head_whatsapp : dept.head_whatsapp,
       stream_color !== undefined ? stream_color : dept.stream_color,
+      parent_id !== undefined ? (parent_id ? Number(parent_id) : null) : dept.parent_id,
       dept.id
     );
     logAction(dept.id, today(), 'department_updated');
@@ -638,6 +697,8 @@ app.delete('/api/admin/departments/:id', requireAdmin, (req, res) => {
   try {
     const dept = db.prepare('SELECT * FROM departments WHERE id = ?').get(req.params.id);
     if (!dept) return res.status(404).json({ error: 'department not found' });
+    // Deleting a parent orphans its children rather than cascading the delete.
+    db.prepare('UPDATE departments SET parent_id = NULL WHERE parent_id = ?').run(dept.id);
     db.prepare('DELETE FROM departments WHERE id = ?').run(dept.id);
     logAction(dept.id, today(), `department_deleted: ${dept.name}`);
     res.json({ success: true });

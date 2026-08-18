@@ -222,8 +222,9 @@ def slide_overview(prs, date, departments, submissions, brand, C, report, font):
 
         add_rect(slide, left, top, col_w, row_h, C.PANEL)
         add_rect(slide, left, top, Inches(0.12), row_h, hex_to_rgb(dept["stream_color"]))
+        display_name = ("· " + dept["name"]) if dept.get("parent_id") else dept["name"]
         add_text(slide, left + Inches(0.25), top + Inches(0.08),
-                 Inches(3.0), Inches(0.35), dept["name"], size=14, bold=True,
+                 Inches(3.0), Inches(0.35), display_name, size=14, bold=True,
                  color=hex_to_rgb(dept["stream_color"]), font_name=font)
 
         sub = next((s for s in submissions if s["department_id"] == dept["id"]), None)
@@ -487,12 +488,22 @@ def build(date):
     departments, submissions = fetch_data(date)
     prs = new_presentation(report)
 
+    # Order sections parent-first, then its children, then the next parent:
+    # sort key = (parent's id or own id, 0 if this row is a parent else 1, own id).
+    def dept_sort_key(d):
+        parent_id = d.get("parent_id")
+        if parent_id:
+            return (parent_id, 1, d["id"])
+        return (d["id"], 0, d["id"])
+
+    departments = sorted(departments, key=dept_sort_key)
+
     submitted_dept_ids = [s["department_id"] for s in submissions]
     submitted_depts_ordered = []
-    for s in submissions:
-        dept = next((d for d in departments if d["id"] == s["department_id"]), None)
-        if dept:
-            submitted_depts_ordered.append((dept, s))
+    for dept in departments:
+        sub = next((s for s in submissions if s["department_id"] == dept["id"]), None)
+        if sub:
+            submitted_depts_ordered.append((dept, sub))
     not_submitted = [d for d in departments if d["id"] not in submitted_dept_ids]
 
     slide_order = report.get('slide_order', ['overview', 'dept_overview', 'dept_schedule', 'dept_photos', 'no_submission'])

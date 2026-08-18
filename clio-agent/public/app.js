@@ -213,24 +213,56 @@
       const done = state.departments.filter(d => d.submitted).length;
       $('team-line').innerHTML = `<b>${done} OF ${state.departments.length}</b> SUBMITTED TONIGHT`;
 
-      const list = $('dept-list');
-      list.innerHTML = '';
-      state.departments.forEach(d => {
-        const card = document.createElement('button');
-        card.type = 'button';
-        card.className = 'dept-card';
-        card.innerHTML = `
-          <span class="dot" style="background:${escapeHtml(d.stream_color || '#3B82F6')}"></span>
-          <span class="dn">${escapeHtml(d.name)}</span>
-          <span class="st ${d.submitted ? 'ok' : 'pending'}">${d.submitted ? `${escapeHtml(timeOnly(d.submitted_at))} ✓` : 'PENDING'}</span>
-        `;
-        card.addEventListener('click', () => openDepartment(d));
-        list.appendChild(card);
-      });
+      renderDeptList(state.departments);
     } catch (err) {
       console.error('refreshStatus failed:', err);
       showSelectError('Could not load event data. Check your connection and retry.');
     }
+  }
+
+  function makeDeptCard(d, opts) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'dept-card' + ((opts && opts.indent) ? ' dept-card-child' : '');
+    card.innerHTML = `
+      <span class="dot" style="background:${escapeHtml(d.stream_color || '#3B82F6')}"></span>
+      <span class="dn">${escapeHtml(d.name)}</span>
+      <span class="st ${d.submitted ? 'ok' : 'pending'}">${d.submitted ? `${escapeHtml(timeOnly(d.submitted_at))} ✓` : 'PENDING'}</span>
+    `;
+    card.addEventListener('click', () => openDepartment(d));
+    return card;
+  }
+
+  // Groups: parentless departments render in id order; a parent with
+  // children renders as a small header row (name + stream dot) followed by
+  // its children, indented. The parent itself only gets a card alongside the
+  // header when it has its own progress (submitted or overall_progress > 0):
+  // otherwise the header alone stands in for it, to avoid clutter.
+  function renderDeptList(departments) {
+    const list = $('dept-list');
+    list.innerHTML = '';
+    const parents = departments.filter(d => !d.parent_id);
+    const childrenOf = (pid) => departments.filter(d => d.parent_id === pid);
+
+    parents.forEach(p => {
+      const kids = childrenOf(p.id);
+      if (!kids.length) {
+        list.appendChild(makeDeptCard(p));
+        return;
+      }
+      const header = document.createElement('div');
+      header.className = 'dept-group-header';
+      header.innerHTML = `
+        <span class="dot" style="background:${escapeHtml(p.stream_color || '#3B82F6')}"></span>
+        <span class="dgh-name">${escapeHtml(p.name)}</span>
+      `;
+      list.appendChild(header);
+
+      if (p.submitted || (p.overall_progress || 0) > 0) {
+        list.appendChild(makeDeptCard(p, { indent: true }));
+      }
+      kids.forEach(k => list.appendChild(makeDeptCard(k, { indent: true })));
+    });
   }
 
   function showSelectError(msg) {

@@ -14,7 +14,8 @@
     pmEmails: [],
     reportConfig: {},
     logsLoaded: false,
-    overviewTimer: null
+    overviewTimer: null,
+    departments: []           // last /api/admin/departments payload (Departments section)
   };
 
   // ── DOM utils ─────────────────────────────────────────────
@@ -279,6 +280,23 @@
     return String(s || '').toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase());
   }
 
+  function streamRow(d, byDept, opts) {
+    const sub = byDept.get(d.id);
+    const row = document.createElement('div');
+    row.className = 'sub-row' + (sub ? '' : ' missing') + ((opts && opts.indent) ? ' sub-row-child' : '');
+    const pct = sub ? (sub.overall_progress || 0) : 0;
+    row.innerHTML = `
+      <span class="swatch-dot" style="background:${escapeHtml(sub ? d.stream_color : 'var(--muted)')}"></span>
+      <span class="sd-name">${escapeHtml(d.name)}</span>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      <span class="pct">${sub ? pct + '%' : '·'}</span>
+      ${sub
+        ? `<span class="time">${escapeHtml(timeOnly(sub.submitted_at))}</span>`
+        : `<button type="button" class="nudge" data-id="${d.id}" data-name="${escapeHtml(d.name)}">NUDGE</button>`}
+    `;
+    return row;
+  }
+
   function renderStreams(depts, byDept) {
     const box = $('ov-streams');
     box.innerHTML = '';
@@ -286,21 +304,20 @@
       box.innerHTML = '<p class="panel-note">No departments configured yet.</p>';
       return;
     }
-    depts.forEach(d => {
-      const sub = byDept.get(d.id);
-      const row = document.createElement('div');
-      row.className = 'sub-row' + (sub ? '' : ' missing');
-      const pct = sub ? (sub.overall_progress || 0) : 0;
-      row.innerHTML = `
-        <span class="swatch-dot" style="background:${escapeHtml(sub ? d.stream_color : 'var(--muted)')}"></span>
-        <span class="sd-name">${escapeHtml(d.name)}</span>
-        <div class="bar"><i style="width:${pct}%"></i></div>
-        <span class="pct">${sub ? pct + '%' : '·'}</span>
-        ${sub
-          ? `<span class="time">${escapeHtml(timeOnly(sub.submitted_at))}</span>`
-          : `<button type="button" class="nudge" data-id="${d.id}" data-name="${escapeHtml(d.name)}">NUDGE</button>`}
-      `;
-      box.appendChild(row);
+    const parents = depts.filter(d => !d.parent_id);
+    const childrenOf = (pid) => depts.filter(d => d.parent_id === pid);
+    parents.forEach(p => {
+      const kids = childrenOf(p.id);
+      if (!kids.length) {
+        box.appendChild(streamRow(p, byDept));
+        return;
+      }
+      const header = document.createElement('div');
+      header.className = 'sub-row-group-header';
+      header.innerHTML = `<span class="swatch-dot" style="background:${escapeHtml(p.stream_color || '#3B82F6')}"></span>${escapeHtml(p.name)}`;
+      box.appendChild(header);
+      if (byDept.has(p.id)) box.appendChild(streamRow(p, byDept, { indent: true }));
+      kids.forEach(k => box.appendChild(streamRow(k, byDept, { indent: true })));
     });
     box.querySelectorAll('.nudge').forEach(btn => {
       btn.addEventListener('click', () => nudge(btn));
@@ -413,15 +430,22 @@
     let depts;
     try { depts = await apiJson('/api/admin/departments'); }
     catch (err) { toast('Failed to load departments: ' + err.message, { err: true }); return; }
+    state.departments = depts;
     const list = $('dept-list');
     list.innerHTML = '';
-    if (!depts.length) list.innerHTML = '<p class="panel-note">No departments yet. Add the first one.</p>';
-    depts.forEach(d => list.appendChild(deptRow(d)));
+    if (!depts.length) { list.innerHTML = '<p class="panel-note">No departments yet. Add the first one.</p>'; return; }
+
+    const parents = depts.filter(d => !d.parent_id);
+    const childrenOf = (pid) => depts.filter(d => d.parent_id === pid);
+    parents.forEach(p => {
+      list.appendChild(deptRow(p, depts));
+      childrenOf(p.id).forEach(c => list.appendChild(deptRow(c, depts, { indent: true })));
+    });
   }
 
-  function deptRow(d) {
+  function deptRow(d, allDepts, opts) {
     const row = document.createElement('div');
-    row.className = 'dept-admin-row';
+    row.className = 'dept-admin-row' + ((opts && opts.indent) ? ' dept-admin-row-child' : '');
     row.innerHTML = `
       <div class="dept-admin-head">
         <span class="swatch-dot" style="background:${escapeHtml(d.stream_color || '#3B82F6')}"></span>
@@ -439,7 +463,7 @@
       const open = row.querySelector('.dept-editor');
       if (open) { open.remove(); return; }
       document.querySelectorAll('.dept-editor').forEach(e => e.remove());
-      row.appendChild(deptEditor(d));
+      row.appendChild(deptEditor(d, allDepts));
     });
     row.querySelector('.del').addEventListener('click', async () => {
       if (!confirm(`Delete department "${d.name}"? This cannot be undone.`)) return;
@@ -452,11 +476,26 @@
     return row;
   }
 
-  function deptEditor(d) {
+  function deptEditor(d, allDepts) {
     const isNew = !d.id;
     const wrap = document.createElement('div');
     wrap.className = 'dept-editor';
     const color = d.stream_color || '#3B82F6';
+
+    // Parent selector: only top-level departments (excluding self) qualify.
+    // A department that already has children of its own cannot take a parent.
+    const depts = allDepts || [];
+    const isParentOfSomeone = depts.some(x => x.parent_id === d.id);
+    const parentChoices = depts.filter(x => !x.parent_id && x.id !== d.id);
+    const parentField = isParentOfSomeone
+      ? `<div class="field"><label>Parent department</label>
+           <p class="panel-note" style="margin:0;">This department has children, so it cannot itself be nested.</p></div>`
+      : `<div class="field"><label>Parent department <span class="opt">optional</span></label>
+           <select class="input" data-f="parent_id">
+             <option value="">None (top level)</option>
+             ${parentChoices.map(p => `<option value="${p.id}" ${d.parent_id === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
+           </select></div>`;
+
     wrap.innerHTML = `
       <div class="form-cols">
         <div class="field"><label>Department name</label>
@@ -468,6 +507,7 @@
         <div class="field"><label>HOD WhatsApp</label>
           <input type="text" class="input" data-f="head_whatsapp" value="${escapeHtml(d.head_whatsapp || '')}" placeholder="+9665xxxxxxxx" /></div>
       </div>
+      ${parentField}
       <div class="field"><label>Stream color</label>
         <div class="color-field">
           <input type="color" data-f="color-pick" value="${escapeHtml(color)}" />
@@ -487,12 +527,14 @@
     });
     wrap.querySelector('.cancel').addEventListener('click', () => wrap.remove());
     wrap.querySelector('.save').addEventListener('click', async () => {
+      const parentSel = wrap.querySelector('[data-f="parent_id"]');
       const payload = {
         name: wrap.querySelector('[data-f="name"]').value.trim(),
         head_name: wrap.querySelector('[data-f="head_name"]').value.trim(),
         head_email: wrap.querySelector('[data-f="head_email"]').value.trim(),
         head_whatsapp: wrap.querySelector('[data-f="head_whatsapp"]').value.trim(),
-        stream_color: /^#[0-9a-f]{6}$/i.test(hex.value.trim()) ? hex.value.trim() : pick.value
+        stream_color: /^#[0-9a-f]{6}$/i.test(hex.value.trim()) ? hex.value.trim() : pick.value,
+        parent_id: parentSel && parentSel.value ? Number(parentSel.value) : null
       };
       if (!payload.name) { toast('Department name is required', { err: true }); return; }
       try {
@@ -509,7 +551,7 @@
 
   function addDepartment() {
     document.querySelectorAll('.dept-editor').forEach(e => e.remove());
-    $('dept-list').prepend(deptEditor({}));
+    $('dept-list').prepend(deptEditor({}, state.departments || []));
   }
 
   // ══════════════════════════════════════════════════════════

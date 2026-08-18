@@ -273,6 +273,7 @@ app.get('/api/status', (req, res) => {
       event_edition: getEventEdition(),
       logo_url: getLogoUrl(),
       brand: getPublicBrand(),
+      timezone: tz(),
       report_time: (getScheduleConfig().report_time || '23:00'),
       departments: getStatusList(today())
     });
@@ -410,7 +411,7 @@ function requireApiKey(req, res, next) {
   next();
 }
 
-app.post('/api/generate-report', requireApiKey, async (req, res) => {
+app.post('/api/generate-report', requireAdminOrApiKey, async (req, res) => {
   const date = (req.body && req.body.date) || today();
   const sendEmail = req.body && req.body.send_email;
   try {
@@ -430,7 +431,7 @@ app.post('/api/generate-report', requireApiKey, async (req, res) => {
   }
 });
 
-app.get('/api/report/:date', requireApiKey, (req, res) => {
+app.get('/api/report/:date', requireAdminOrApiKey, (req, res) => {
   try {
     const rows = db.prepare(`
       SELECT ds.*, d.name AS department_name, d.stream_color, d.head_name
@@ -468,6 +469,15 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+// Admin password OR report API key. Used on report endpoints so the
+// admin console can trigger generation without knowing REPORT_API_KEY,
+// while existing automation keyed on x-api-key keeps working.
+function requireAdminOrApiKey(req, res, next) {
+  const key = req.header('x-api-key');
+  if (key && key === process.env.REPORT_API_KEY) return next();
+  return requireAdmin(req, res, next);
+}
+
 app.post('/api/admin/verify', (req, res) => {
   if (req.body?.password === process.env.ADMIN_PASSWORD) {
     return res.json({ ok: true });
@@ -477,7 +487,7 @@ app.post('/api/admin/verify', (req, res) => {
 
 app.post('/api/admin/send-reminders', requireAdmin, async (req, res) => {
   try {
-    const reminded = await sendPendingReminders();
+    const reminded = await sendPendingReminders(req.body?.department_id || null);
     res.json({ success: true, reminded });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -815,7 +825,8 @@ async function runGenerateWeeklyReport(endDate) {
 }
 
 // ── Cron: reminders + report ───────────────────────────────
-async function sendPendingReminders() {
+async function sendPendingReminders(onlyDeptId = null) {
+  if (onlyDeptId != null) onlyDeptId = Number(onlyDeptId);
   const date = today();
   const status = getStatusList(date);
   const submitted = status.filter(s => s.submitted);
@@ -830,6 +841,7 @@ async function sendPendingReminders() {
 
   const remindedNames = [];
   for (const p of pending) {
+    if (onlyDeptId != null && p.id !== onlyDeptId) continue;
     const dept = depts.find(d => d.id === p.id);
     if (!dept) continue;
     try {

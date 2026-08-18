@@ -1,1084 +1,382 @@
 <!doctype html>
-<html lang="en" class="admin">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#0F172A" />
-  <title>CLIO: Admin Panel</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230F172A'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%233B82F6'/%3E%3C/svg%3E" />
+  <title>Admin Console</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-  <!-- LOGIN -->
-  <section id="login-view">
-    <div class="login-card">
-      <div class="login-product">CLIO</div>
-      <div class="login-subtitle">Admin Panel</div>
-      <input type="password" id="admin-pw" placeholder="Admin password" />
-      <div style="height:12px"></div>
-      <button class="submit-btn" id="login-btn">Unlock</button>
-      <p id="login-err" style="color:var(--red);font-size:12px;text-align:center;margin-top:10px;display:none;">Incorrect password.</p>
-    </div>
-  </section>
-
-  <!-- DASHBOARD -->
-  <section id="dash-view" class="admin-wrap" style="display:none">
-    <div class="admin-header">
-      <div class="admin-header-text">
-        <h1>CLIO Admin Panel</h1>
-        <div class="admin-subtitle">Event Operations Dashboard</div>
-      </div>
-    </div>
-
-    <!-- TABS -->
-    <div class="admin-tabs">
-      <button class="admin-tab active" data-tab="tab-overview">Overview</button>
-      <button class="admin-tab" data-tab="tab-settings">Project</button>
-      <button class="admin-tab" data-tab="tab-departments">Departments</button>
-      <button class="admin-tab" data-tab="tab-brand">Brand</button>
-      <button class="admin-tab" data-tab="tab-report">Report</button>
-      <button class="admin-tab" data-tab="tab-delivery">Delivery</button>
-      <button class="admin-tab" data-tab="tab-schedule">Schedule</button>
-      <button class="admin-tab" data-tab="tab-archive">Archive</button>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════ -->
-    <!-- TAB: OVERVIEW                                       -->
-    <!-- ═══════════════════════════════════════════════════ -->
-    <div class="tab-panel active" id="tab-overview">
-      <div id="today-line" style="color:var(--muted);margin-bottom:16px;"></div>
-      <div class="admin-controls">
-        <button class="primary" id="gen-now-btn">Generate Report Now</button>
-        <button id="remind-btn">Send Reminders Now</button>
-        <input type="date" id="hist-date" />
-        <button id="hist-btn">Generate Historical Report</button>
-        <button id="download-btn">Download Today's Report</button>
-      </div>
-
-      <h2 class="admin-section-title">Today's Submission Status</h2>
-      <table class="admin-table">
-        <thead>
-          <tr><th>Department</th><th>HOD</th><th>Submitted</th><th>Time</th><th>Progress</th><th>Photos</th></tr>
-        </thead>
-        <tbody id="status-rows"></tbody>
-      </table>
-
-      <h2 class="admin-section-title">Recent Logs</h2>
-      <div class="log-list" id="logs"></div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════ -->
-    <!-- TAB: PROJECT SETTINGS                               -->
-    <!-- ═══════════════════════════════════════════════════ -->
-    <div class="tab-panel" id="tab-settings">
-      <div class="admin-card">
-        <h2 class="admin-section-title" style="margin-top:0;">Event Configuration</h2>
-        <p style="color:var(--muted);font-size:13px;margin:0 0 20px;">Shown in reports and the HOD portal header.</p>
-        <div class="admin-form-row">
-          <label>Event Name</label>
-          <input type="text" id="setting-event-name" placeholder="e.g. Riyadh Season 2026" />
-        </div>
-        <div class="admin-form-row">
-          <label>Event Edition / Phase</label>
-          <input type="text" id="setting-event-edition" placeholder="e.g. Day 1, Week 3, Build Phase" />
-        </div>
-        <div style="display:flex;gap:12px;margin-top:20px;">
-          <button class="submit-btn" id="save-settings-btn" style="max-width:240px;min-height:50px;font-size:14px;">Save Settings</button>
-          <div id="settings-saved" class="save-flash">Saved</div>
+  <!-- ── Password gate ─────────────────────────────────────── -->
+  <div class="gate" id="gate">
+    <div class="gate-card">
+      <div class="gate-lockup">
+        <div class="logo-mark" id="gate-mark">C</div>
+        <div>
+          <div class="gate-name" id="gate-name">CLIO</div>
+          <span class="gate-sub">Admin Console</span>
         </div>
       </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════ -->
-    <!-- TAB: DEPARTMENTS                                    -->
-    <!-- ═══════════════════════════════════════════════════ -->
-    <div class="tab-panel" id="tab-departments">
-      <div class="admin-card">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-          <h2 class="admin-section-title" style="margin:0;">Manage Departments</h2>
-          <button class="admin-btn-add" id="add-dept-btn">+ Add Department</button>
-        </div>
-        <p style="color:var(--muted);font-size:13px;margin:0 0 16px;">Add, edit, or remove departments. Changes take effect immediately on the HOD portal.</p>
-        <table class="admin-table" id="dept-table">
-          <thead><tr><th>Color</th><th>Name</th><th>HOD Name</th><th>Email</th><th>WhatsApp</th><th></th></tr></thead>
-          <tbody id="dept-rows"></tbody>
-        </table>
+      <div class="field">
+        <label for="gate-pw">Admin password</label>
+        <input type="password" class="input" id="gate-pw" autocomplete="current-password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" />
       </div>
-      <!-- Department Modal -->
-      <div class="admin-modal-overlay" id="dept-modal" style="display:none;">
-        <div class="admin-modal">
-          <h3 id="dept-modal-title">Add Department</h3>
-          <input type="hidden" id="dept-edit-id" />
-          <div class="admin-form-row"><label>Department Name</label><input type="text" id="dept-name" placeholder="e.g. CATERING" /></div>
-          <div class="admin-form-row"><label>HOD Name</label><input type="text" id="dept-hod" placeholder="e.g. John Smith" /></div>
-          <div class="admin-form-row"><label>HOD Email</label><input type="text" id="dept-email" placeholder="e.g. hod@company.com" /></div>
-          <div class="admin-form-row"><label>HOD WhatsApp</label><input type="text" id="dept-whatsapp" placeholder="e.g. +9665xxxxxxxx" /></div>
-          <div class="admin-form-row">
-            <label>Stream Color</label>
-            <div style="display:flex;gap:10px;align-items:center;">
-              <input type="color" id="dept-color" value="#3B82F6" style="width:50px;height:40px;border:none;background:none;cursor:pointer;" />
-              <span id="dept-color-hex" style="font-size:13px;color:var(--muted);">#3B82F6</span>
+      <button type="button" class="btn-primary" id="gate-btn">Unlock console</button>
+      <p class="gate-err" id="gate-err">Incorrect password.</p>
+    </div>
+  </div>
+
+  <!-- ── Console shell ─────────────────────────────────────── -->
+  <div class="admin-shell" id="shell" hidden>
+
+    <aside class="admin-side">
+      <div class="logo-lockup">
+        <div class="logo-mark" id="side-mark">C</div>
+        <div class="l-text">
+          <div class="l-name" id="side-name">CLIO</div>
+          <span class="l-sub" id="side-sub">Admin Console</span>
+        </div>
+      </div>
+
+      <button type="button" class="nav-item on" data-sec="overview"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span class="nav-label">Overview</span></button>
+      <button type="button" class="nav-item" data-sec="departments"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg><span class="nav-label">Departments</span></button>
+      <button type="button" class="nav-item" data-sec="whatsapp"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 01-9 8.4 8.6 8.6 0 01-3.9-.9L3 20l1-4.9a8.4 8.4 0 1117-3.6z"/></svg><span class="nav-label">WhatsApp</span></button>
+      <button type="button" class="nav-item" data-sec="brand"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg><span class="nav-label">Brand</span></button>
+      <button type="button" class="nav-item" data-sec="report"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg><span class="nav-label">Report</span></button>
+      <button type="button" class="nav-item" data-sec="delivery"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 8l9 6 9-6M4 6h16a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V7a1 1 0 011-1z"/></svg><span class="nav-label">Delivery</span></button>
+      <button type="button" class="nav-item" data-sec="schedule"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg><span class="nav-label">Schedule</span></button>
+      <button type="button" class="nav-item" data-sec="archive"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 4h16v4H4zM4 12h16v8H4z"/></svg><span class="nav-label">Archive</span></button>
+      <button type="button" class="nav-item" data-sec="project"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19 12a7 7 0 01-.1 1.2l2 1.6-2 3.4-2.4-1a7 7 0 01-2 1.2L14 21h-4l-.4-2.6a7 7 0 01-2-1.2l-2.5 1-2-3.4 2-1.6A7 7 0 015 12a7 7 0 01.1-1.2l-2-1.6 2-3.4 2.4 1a7 7 0 012-1.2L10 3h4l.4 2.6a7 7 0 012 1.2l2.5-1 2 3.4-2 1.6c.06.39.1.79.1 1.2z"/></svg><span class="nav-label">Project</span></button>
+
+      <div class="nav-foot">v2.0 &middot; <span class="env" id="env-line">&#9679; LOCAL</span></div>
+    </aside>
+
+    <main class="admin-main">
+
+      <!-- ── Overview ──────────────────────────────────────── -->
+      <section class="admin-section on" id="sec-overview">
+        <div class="admin-topline">
+          <h1 id="ov-title">Tonight</h1>
+          <div class="date-nav">
+            <button type="button" class="arrow" id="date-prev" aria-label="Previous day">&#8249;</button>
+            <span id="ov-date">&hellip;</span>
+            <button type="button" class="arrow" id="date-next" aria-label="Next day">&#8250;</button>
+          </div>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi" id="kpi-submitted"><div class="k-label">Submitted</div><div class="k-val">&middot;</div><div class="k-hint"></div></div>
+          <div class="kpi" id="kpi-progress"><div class="k-label">Avg Progress</div><div class="k-val">&middot;</div><div class="k-hint"></div></div>
+          <div class="kpi" id="kpi-blockers"><div class="k-label">Blockers</div><div class="k-val">&middot;</div><div class="k-hint"></div></div>
+          <div class="kpi" id="kpi-report"><div class="k-label">Report</div><div class="k-val" style="font-size:16px;padding-top:8px;color:var(--muted)">&middot;</div><div class="k-hint"></div></div>
+        </div>
+
+        <div class="overview-grid">
+          <div class="panel-box">
+            <h4>Department Streams</h4>
+            <div id="ov-streams"></div>
+          </div>
+          <div class="panel-box">
+            <h4 id="ov-report-title">Report</h4>
+            <div class="donut-wrap">
+              <div class="donut" id="ov-donut"><div class="hole"><div><b id="ov-donut-pct">&middot;</b><span>filed</span></div></div></div>
+              <div class="legend" id="ov-legend"></div>
+            </div>
+            <div class="action-stack">
+              <button type="button" class="action-btn primary" id="act-generate">&#9889; Generate report now<span class="kbd">PPTX</span></button>
+              <button type="button" class="action-btn" id="act-remind">&#9993; Remind pending HODs<span class="kbd" id="act-remind-kbd"></span></button>
+              <button type="button" class="action-btn" id="act-download">&#8595; Download report<span class="kbd" id="act-download-kbd"></span></button>
             </div>
           </div>
-          <div style="display:flex;gap:12px;margin-top:20px;">
-            <button class="submit-btn" id="dept-save-btn" style="flex:1;min-height:50px;font-size:14px;">Save</button>
-            <button class="admin-btn-cancel" id="dept-cancel-btn">Cancel</button>
+        </div>
+
+        <div class="panel-box" style="margin-top:14px;">
+          <button type="button" class="log-toggle mono-label" id="log-toggle"><span class="chev">&#9656;</span> Activity log</button>
+          <div class="log-rows" id="log-rows"></div>
+        </div>
+      </section>
+
+      <!-- ── Departments ───────────────────────────────────── -->
+      <section class="admin-section" id="sec-departments">
+        <div class="admin-topline">
+          <h1>Departments</h1>
+          <button type="button" class="btn-sm solid" id="dept-add-btn">+ Add department</button>
+        </div>
+        <div class="panel-box">
+          <h4>Streams &amp; HOD contacts</h4>
+          <p class="panel-note panel-gap">Changes go live on the operator portal immediately. The stream color follows each department into the console and the report deck.</p>
+          <div id="dept-list"></div>
+        </div>
+      </section>
+
+      <!-- ── WhatsApp ──────────────────────────────────────── -->
+      <section class="admin-section" id="sec-whatsapp">
+        <div class="admin-topline">
+          <h1>WhatsApp</h1>
+        </div>
+        <!-- The live inbox mounts here once the WhatsApp integration task lands. -->
+        <div id="wa-root">
+          <div class="panel-box">
+            <div class="wa-empty">
+              <div class="we-ring"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 01-9 8.4 8.6 8.6 0 01-3.9-.9L3 20l1-4.9a8.4 8.4 0 1117-3.6z"/></svg></div>
+              <h5>Inbox not active yet</h5>
+              <p>The WhatsApp inbox activates once the WhatsApp integration is configured. Reminders, delivery ticks, and HOD replies will thread here per person.</p>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
+      </section>
 
-    <!-- ═══════════════════════════════════════════════════ -->
-    <!-- TAB: BRAND GUIDELINES                               -->
-    <!-- ═══════════════════════════════════════════════════ -->
-    <div class="tab-panel" id="tab-brand">
-      <div class="admin-card">
-        <h2 class="admin-section-title" style="margin-top:0;">Brand Guidelines</h2>
-        <p style="color:var(--muted);font-size:13px;margin:0 0 20px;">These settings control the look and feel of the generated PPTX reports. Upload your logo, set your brand colors, and choose a font.</p>
+      <!-- ── Brand ─────────────────────────────────────────── -->
+      <section class="admin-section" id="sec-brand">
+        <div class="admin-topline">
+          <h1>Brand</h1>
+        </div>
 
-        <!-- Logo -->
-        <div class="admin-form-row">
-          <label>Report Logo</label>
-          <div style="display:flex;gap:16px;align-items:center;">
-            <div class="logo-preview-box" id="brand-logo-preview-box">
-              <img id="brand-logo-preview" src="" alt="" />
-              <span id="brand-logo-empty">No logo</span>
+        <div class="panel-box panel-gap">
+          <h4>Identity</h4>
+          <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px;">
+            <div class="logo-drop" id="logo-drop">
+              <img id="logo-preview" alt="" hidden />
+              <span id="logo-empty">No logo</span>
             </div>
             <div>
-              <input type="file" id="brand-logo-file" accept="image/*" style="display:none;" />
-              <button class="admin-btn-sm" id="upload-logo-btn">Choose File</button>
-              <div style="font-size:11px;color:var(--muted);margin-top:4px;">PNG or JPG. Will appear on every slide.</div>
+              <input type="file" id="logo-file" accept="image/*" hidden />
+              <button type="button" class="btn-sm" id="logo-btn">Upload logo</button>
+              <p class="panel-note">PNG or JPG. Appears on every report slide, the portal, and this sidebar.</p>
+            </div>
+          </div>
+          <div class="form-cols">
+            <div class="field">
+              <label for="brand-company">Company name</label>
+              <input type="text" class="input" id="brand-company" placeholder="Your company" />
+            </div>
+            <div class="field">
+              <label for="brand-subtitle">Company subtitle</label>
+              <input type="text" class="input" id="brand-subtitle" placeholder="Your tagline" />
+            </div>
+          </div>
+          <div class="field" style="max-width:340px;">
+            <label for="brand-font">Font family</label>
+            <input type="text" class="input" id="brand-font" placeholder="Sora" />
+            <p class="hint">Used across the portal and the PPTX deck. Must be installed on the machine generating reports.</p>
+          </div>
+        </div>
+
+        <div class="panel-box panel-gap">
+          <h4>Colors</h4>
+          <div class="color-grid">
+            <div class="field">
+              <label for="col-background_color">Background</label>
+              <div class="color-field"><input type="color" id="col-background_color" value="#0F172A" /><input type="text" class="input hex" id="hex-background_color" value="#0F172A" /></div>
+            </div>
+            <div class="field">
+              <label for="col-primary_color">Primary / Interactive</label>
+              <div class="color-field"><input type="color" id="col-primary_color" value="#3B82F6" /><input type="text" class="input hex" id="hex-primary_color" value="#3B82F6" /></div>
+            </div>
+            <div class="field">
+              <label for="col-label_color">Label / Accent</label>
+              <div class="color-field"><input type="color" id="col-label_color" value="#FACC15" /><input type="text" class="input hex" id="hex-label_color" value="#FACC15" /></div>
+            </div>
+            <div class="field">
+              <label for="col-text_color">Text</label>
+              <div class="color-field"><input type="color" id="col-text_color" value="#E2E8F0" /><input type="text" class="input hex" id="hex-text_color" value="#E2E8F0" /></div>
+            </div>
+            <div class="field">
+              <label for="col-muted_color">Muted text</label>
+              <div class="color-field"><input type="color" id="col-muted_color" value="#64748B" /><input type="text" class="input hex" id="hex-muted_color" value="#64748B" /></div>
+            </div>
+            <div class="field">
+              <label for="col-panel_color">Panel / Card</label>
+              <div class="color-field"><input type="color" id="col-panel_color" value="#1E293B" /><input type="text" class="input hex" id="hex-panel_color" value="#1E293B" /></div>
+            </div>
+          </div>
+          <div class="swatch-row" id="swatch-row"></div>
+        </div>
+
+        <div class="panel-box">
+          <h4>Portal Preview</h4>
+          <div class="brand-mock" id="brand-mock">
+            <div class="bm-kicker" id="bm-kicker">Daily Report</div>
+            <div class="bm-event" id="bm-event">Your Event</div>
+            <div class="bm-card" id="bm-card">
+              <span class="dot" style="background:#F87171"></span>
+              <span class="n">STAGE<br /><small class="bm-hod" id="bm-hod" style="font-size:10px;font-weight:400;">Head of Department</small></span>
+              <span class="s" id="bm-status">SUBMITTED 21:12</span>
             </div>
           </div>
         </div>
 
-        <!-- Company -->
-        <div class="admin-form-row">
-          <label>Company Name</label>
-          <input type="text" id="brand-company" placeholder="e.g. Your Company" />
+        <div class="save-bar">
+          <button type="button" class="action-btn primary" id="brand-save">Save brand settings</button>
         </div>
-        <div class="admin-form-row">
-          <label>Company Subtitle</label>
-          <input type="text" id="brand-subtitle" placeholder="e.g. Your tagline" />
+      </section>
+
+      <!-- ── Report ────────────────────────────────────────── -->
+      <section class="admin-section" id="sec-report">
+        <div class="admin-topline">
+          <h1>Report</h1>
+        </div>
+        <!-- The report builder upgrade mounts inside this root in a later task. -->
+        <div id="report-root">
+          <div class="panel-box panel-gap">
+            <h4>Deck Format</h4>
+            <div class="field" style="max-width:260px;margin-bottom:4px;">
+              <label for="report-dimensions">Slide dimensions</label>
+              <select class="input" id="report-dimensions">
+                <option value="16:9">16:9 widescreen</option>
+                <option value="4:3">4:3 standard</option>
+              </select>
+            </div>
+          </div>
+          <div class="panel-box">
+            <h4>Slide Structure</h4>
+            <p class="panel-note panel-gap">Toggle slide types on or off, reorder them, and tune per-slide options. The nightly deck follows this structure exactly.</p>
+            <div id="slide-list"></div>
+          </div>
+          <div class="save-bar">
+            <button type="button" class="action-btn primary" id="report-save">Save report settings</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Delivery ──────────────────────────────────────── -->
+      <section class="admin-section" id="sec-delivery">
+        <div class="admin-topline">
+          <h1>Delivery</h1>
         </div>
 
-        <!-- Font -->
-        <div class="admin-form-row">
-          <label>Font Name (PPTX)</label>
-          <input type="text" id="brand-font" placeholder="Calibri" />
-          <div style="font-size:11px;color:var(--muted);margin-top:4px;">Must be installed on the machine generating reports.</div>
-        </div>
-
-        <!-- Colors -->
-        <h2 class="admin-section-title">Report Colors</h2>
-        <div class="color-grid">
-          <div class="color-picker-row">
-            <label>Background</label>
-            <div class="color-input-wrap">
-              <input type="color" id="brand-bg-color" value="#0F172A" />
-              <span class="color-hex" data-for="brand-bg-color">#0F172A</span>
-            </div>
-          </div>
-          <div class="color-picker-row">
-            <label>Primary / Accent</label>
-            <div class="color-input-wrap">
-              <input type="color" id="brand-primary-color" value="#3B82F6" />
-              <span class="color-hex" data-for="brand-primary-color">#3B82F6</span>
-            </div>
-          </div>
-          <div class="color-picker-row">
-            <label>Text</label>
-            <div class="color-input-wrap">
-              <input type="color" id="brand-text-color" value="#F1F5F9" />
-              <span class="color-hex" data-for="brand-text-color">#F1F5F9</span>
-            </div>
-          </div>
-          <div class="color-picker-row">
-            <label>Muted / Secondary Text</label>
-            <div class="color-input-wrap">
-              <input type="color" id="brand-muted-color" value="#94A3B8" />
-              <span class="color-hex" data-for="brand-muted-color">#94A3B8</span>
-            </div>
-          </div>
-          <div class="color-picker-row">
-            <label>Panel / Card</label>
-            <div class="color-input-wrap">
-              <input type="color" id="brand-panel-color" value="#1E293B" />
-              <span class="color-hex" data-for="brand-panel-color">#1E293B</span>
-            </div>
+        <div class="panel-box panel-gap">
+          <h4>PM Team Recipients</h4>
+          <p class="panel-note panel-gap">These addresses receive the PPTX deck whenever a report is generated.</p>
+          <div id="pm-chips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;"></div>
+          <div style="display:flex;gap:8px;max-width:420px;">
+            <input type="email" class="input" id="pm-input" placeholder="pm@yourcompany.com" style="flex:1;" />
+            <button type="button" class="btn-sm" id="pm-add" style="flex:none;">+ Add</button>
           </div>
         </div>
 
-        <div style="display:flex;gap:12px;margin-top:24px;">
-          <button class="submit-btn" id="save-brand-btn" style="max-width:280px;min-height:50px;font-size:14px;">Save Brand Settings</button>
-          <div id="brand-saved" class="save-flash">Saved</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════ -->
-    <!-- TAB: REPORT STRUCTURE                               -->
-    <!-- ═══════════════════════════════════════════════════ -->
-    <div class="tab-panel" id="tab-report">
-      <div class="admin-card">
-        <h2 class="admin-section-title" style="margin-top:0;">Report Structure</h2>
-        <p style="color:var(--muted);font-size:13px;margin:0 0 20px;">Configure which slides appear in the daily PPTX report, their order, and per-slide options. Drag to reorder, toggle to enable/disable.</p>
-
-        <!-- Slide Dimensions -->
-        <div class="admin-form-row" style="max-width:280px;">
-          <label>Slide Dimensions</label>
-          <select id="report-dimensions">
-            <option value="16:9">16:9 Widescreen</option>
-            <option value="4:3">4:3 Standard</option>
-          </select>
-        </div>
-
-        <!-- Slide Types -->
-        <h2 class="admin-section-title">Slide Types</h2>
-        <div id="slide-type-list"></div>
-
-        <div style="display:flex;gap:12px;margin-top:24px;">
-          <button class="submit-btn" id="save-report-btn" style="max-width:280px;min-height:50px;font-size:14px;">Save Report Settings</button>
-          <div id="report-saved" class="save-flash">Saved</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════ -->
-    <!-- TAB: DELIVERY                                       -->
-    <!-- ═══════════════════════════════════════════════════ -->
-    <div class="tab-panel" id="tab-delivery">
-      <div class="admin-card">
-        <h2 class="admin-section-title" style="margin-top:0;">PM Team Emails</h2>
-        <p style="color:var(--muted);font-size:13px;margin:0 0 16px;">Report recipients. These email addresses receive the daily PPTX report when generated.</p>
-        <div id="pm-email-chips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;"></div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <input type="email" id="pm-email-input" placeholder="e.g. pm@yourcompany.com" style="flex:1;" />
-          <button class="admin-btn-add" id="add-pm-email-btn">+ Add</button>
-        </div>
-      </div>
-
-      <div class="admin-card" style="margin-top:20px;">
-        <h2 class="admin-section-title" style="margin-top:0;">Sender Configuration</h2>
-        <div class="admin-form-row">
-          <label>Sender Display Name</label>
-          <input type="text" id="delivery-sender-name" placeholder="e.g. CLIO Reports" />
-        </div>
-        <p style="color:var(--muted);font-size:12px;margin:4px 0 0;">SMTP credentials (host, port, user, pass) are configured in the server <code>.env</code> file.</p>
-      </div>
-
-      <div class="admin-card" style="margin-top:20px;">
-        <h2 class="admin-section-title" style="margin-top:0;">Auto-Email on Report Generation</h2>
-        <label style="display:flex;gap:10px;align-items:center;cursor:pointer;">
-          <input type="checkbox" id="delivery-auto-email" />
-          <span style="font-size:14px;">Automatically email report to PM team when generated</span>
-        </label>
-      </div>
-
-      <div class="admin-card" style="margin-top:20px;">
-        <h2 class="admin-section-title" style="margin-top:0;">AI Content Review</h2>
-        <p style="color:var(--muted);font-size:13px;margin:0 0 16px;">Used to automatically review and polish HOD submissions for grammar, spelling, and consistent technical writing style.</p>
-        <div class="admin-form-row">
-          <label>Anthropic API Key</label>
-          <input type="password" id="delivery-anthropic-key" placeholder="sk-ant-..." />
-        </div>
-      </div>
-
-      <div class="admin-card" style="margin-top:20px;">
-        <h2 class="admin-section-title" style="margin-top:0;">Cloud / Storage</h2>
-        <div class="admin-form-row">
-          <label>Data Archive Location</label>
-          <input type="text" id="delivery-archive-path" placeholder="e.g. /mnt/shared/clio-archive or S3 bucket URL" />
-        </div>
-        <p style="color:var(--muted);font-size:12px;margin:4px 0 0;">Informational. Configure actual storage paths in the server environment.</p>
-      </div>
-
-      <div style="display:flex;gap:12px;margin-top:24px;">
-        <button class="submit-btn" id="save-delivery-btn" style="max-width:280px;min-height:50px;font-size:14px;">Save Delivery Settings</button>
-        <div id="delivery-saved" class="save-flash">Saved</div>
-      </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════ -->
-    <!-- TAB: SCHEDULE                                       -->
-    <!-- ═══════════════════════════════════════════════════ -->
-    <div class="tab-panel" id="tab-schedule">
-      <div class="admin-card">
-        <h2 class="admin-section-title" style="margin-top:0;">Timing Configuration</h2>
-        <p style="color:var(--muted);font-size:13px;margin:0 0 20px;">Control when CLIO sends reminders and generates reports each day.</p>
-
-        <div class="admin-form-row">
-          <label>Reminder Time</label>
-          <input type="time" id="schedule-reminder-time" value="21:00" />
-          <div style="font-size:11px;color:var(--muted);margin-top:4px;">When should CLIO remind HODs who haven't submitted?</div>
-        </div>
-
-        <div class="admin-form-row">
-          <label>Report Generation Time</label>
-          <input type="time" id="schedule-report-time" value="23:00" />
-          <div style="font-size:11px;color:var(--muted);margin-top:4px;">When should the daily report be generated and emailed?</div>
-        </div>
-
-        <div class="admin-form-row">
-          <label>Submission Deadline (Display Text)</label>
-          <input type="text" id="schedule-deadline-text" placeholder="e.g. 11:00 PM" value="11:00 PM" />
-          <div style="font-size:11px;color:var(--muted);margin-top:4px;">Shown to HODs as the submission deadline.</div>
-        </div>
-
-        <div class="admin-form-row">
-          <label>Timezone</label>
-          <input type="text" id="schedule-timezone" disabled style="background:var(--panel);color:var(--muted);" />
-          <div style="font-size:11px;color:var(--muted);margin-top:4px;">Configured on the server. Shown here for reference.</div>
-        </div>
-
-        <div style="display:flex;gap:12px;margin-top:24px;">
-          <button class="submit-btn" id="save-schedule-btn" style="max-width:280px;min-height:50px;font-size:14px;">Save Schedule</button>
-          <div id="schedule-saved" class="save-flash">Saved</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════ -->
-    <!-- TAB: ARCHIVE                                        -->
-    <!-- ═══════════════════════════════════════════════════ -->
-    <div class="tab-panel" id="tab-archive">
-      <div class="admin-card">
-        <h2 class="admin-section-title" style="margin-top:0;">Data Archive Browser</h2>
-        <p style="color:var(--muted);font-size:13px;margin:0 0 16px;">Browse past submissions organized by date and department.</p>
-
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:20px;">
-          <input type="date" id="archive-date-picker" />
-          <button class="admin-btn-sm" id="archive-load-date-btn">Load Date</button>
-        </div>
-
-        <h2 class="admin-section-title">Available Dates</h2>
-        <div id="archive-date-list" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;"></div>
-
-        <div id="archive-detail" style="display:none;">
-          <h2 class="admin-section-title" id="archive-detail-title">Submissions</h2>
-          <div id="archive-dept-list"></div>
-        </div>
-      </div>
-    </div>
-
-  </section>
-
-  <script>
-  (() => {
-    const $ = (id) => document.getElementById(id);
-    let adminPw = sessionStorage.getItem('clio_admin_pw') || '';
-    let apiKey = null;
-
-    function adminHeaders() {
-      return { 'Content-Type': 'application/json', 'x-admin-password': adminPw };
-    }
-
-    function flash(id) {
-      const el = $(id);
-      el.style.display = 'inline';
-      setTimeout(() => { el.style.display = 'none'; }, 2500);
-    }
-
-    // ── Auth ────────────────────────────────────────
-    async function verify(pw) {
-      const res = await fetch('/api/admin/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: pw })
-      });
-      return res.ok;
-    }
-
-    // ── Tabs ────────────────────────────────────────
-    const tabLoaders = {
-      'tab-settings': loadSettings,
-      'tab-departments': loadDepartments,
-      'tab-brand': loadBrandConfig,
-      'tab-report': loadReportConfig,
-      'tab-delivery': loadDeliveryConfig,
-      'tab-schedule': loadScheduleConfig,
-      'tab-archive': loadArchiveDates
-    };
-
-    function initTabs() {
-      document.querySelectorAll('.admin-tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-          document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
-          document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-          tab.classList.add('active');
-          $(tab.dataset.tab).classList.add('active');
-          const loader = tabLoaders[tab.dataset.tab];
-          if (loader) loader();
-        });
-      });
-    }
-
-    // ── Overview ────────────────────────────────────
-    async function loadStatus() {
-      const res = await fetch('/api/status');
-      const data = await res.json();
-      $('today-line').textContent = `${data.event_name || 'Event'} · ${data.event_edition || ''} · ${data.date}`;
-      const tbody = $('status-rows');
-      tbody.innerHTML = '';
-      for (const d of data.departments) {
-        const tr = document.createElement('tr');
-        tr.className = d.submitted ? 'ok' : 'bad';
-        let sub = null;
-        try { const r = await fetch(`/api/submission/${d.id}`); sub = await r.json(); } catch {}
-        tr.innerHTML = `
-          <td style="border-left:4px solid ${d.stream_color}">${d.name}</td>
-          <td>${sub && sub.head_name ? sub.head_name : 'n/a'}</td>
-          <td>${d.submitted ? '✓ Yes' : '✗ No'}</td>
-          <td>${d.submitted_at || 'n/a'}</td>
-          <td>${d.overall_progress || 0}%</td>
-          <td>${sub && sub.photos ? sub.photos.length : 0}</td>
-        `;
-        tbody.appendChild(tr);
-      }
-    }
-
-    async function loadLogs() {
-      const res = await fetch(`/api/admin/logs?password=${encodeURIComponent(adminPw)}`);
-      if (!res.ok) return;
-      const rows = await res.json();
-      $('logs').innerHTML = rows.map(r =>
-        `<div>${r.timestamp} · <b>${r.department_name || 'SYSTEM'}</b> · ${r.action}</div>`
-      ).join('');
-    }
-
-    async function promptApiKey() {
-      if (apiKey) return apiKey;
-      const k = prompt('Enter REPORT_API_KEY:');
-      if (k) apiKey = k;
-      return apiKey;
-    }
-
-    async function generateNow(date) {
-      const key = await promptApiKey();
-      if (!key) return;
-      const res = await fetch('/api/generate-report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': key },
-        body: JSON.stringify({ date })
-      });
-      const data = await res.json();
-      if (res.ok) alert('Report generated successfully.');
-      else alert('Failed: ' + (data.error || res.status));
-    }
-
-    async function sendReminders() {
-      const res = await fetch('/api/admin/send-reminders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: adminPw })
-      });
-      const data = await res.json();
-      if (res.ok) alert('Reminders sent to: ' + (data.reminded || []).join(', '));
-      else alert('Failed: ' + (data.error || res.status));
-    }
-
-    function todayIso() { return new Date().toISOString().slice(0,10); }
-
-    async function downloadToday() {
-      window.open(`/api/admin/download/${todayIso()}?password=${encodeURIComponent(adminPw)}`, '_blank');
-    }
-
-    // ── Project Settings ────────────────────────────
-    async function loadSettings() {
-      const res = await fetch('/api/admin/settings', { headers: adminHeaders() });
-      if (!res.ok) return;
-      const data = await res.json();
-      $('setting-event-name').value = data.event_name || '';
-      $('setting-event-edition').value = data.event_edition || '';
-    }
-
-    async function saveSettings() {
-      const res = await fetch('/api/admin/settings', {
-        method: 'PUT',
-        headers: adminHeaders(),
-        body: JSON.stringify({
-          event_name: $('setting-event-name').value.trim(),
-          event_edition: $('setting-event-edition').value.trim()
-        })
-      });
-      if (res.ok) { flash('settings-saved'); loadStatus(); }
-      else alert('Failed to save settings');
-    }
-
-    // ── Departments ─────────────────────────────────
-    async function loadDepartments() {
-      const res = await fetch('/api/admin/departments', { headers: adminHeaders() });
-      if (!res.ok) return;
-      const depts = await res.json();
-      const tbody = $('dept-rows');
-      tbody.innerHTML = '';
-      depts.forEach(d => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td><span style="display:inline-block;width:18px;height:18px;border-radius:4px;background:${d.stream_color};vertical-align:middle;"></span></td>
-          <td style="font-weight:600;">${d.name}</td>
-          <td>${d.head_name || 'n/a'}</td>
-          <td>${d.head_email || 'n/a'}</td>
-          <td>${d.head_whatsapp || 'n/a'}</td>
-          <td style="text-align:right;">
-            <button class="admin-btn-sm edit-dept" data-id="${d.id}">Edit</button>
-            <button class="admin-btn-sm danger delete-dept" data-id="${d.id}" data-name="${d.name}">Delete</button>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-      tbody.querySelectorAll('.edit-dept').forEach(btn => {
-        btn.addEventListener('click', () => openEditDept(depts.find(d => d.id == btn.dataset.id)));
-      });
-      tbody.querySelectorAll('.delete-dept').forEach(btn => {
-        btn.addEventListener('click', () => deleteDept(btn.dataset.id, btn.dataset.name));
-      });
-    }
-
-    function openAddDept() {
-      $('dept-modal-title').textContent = 'Add Department';
-      $('dept-edit-id').value = '';
-      $('dept-name').value = '';
-      $('dept-hod').value = '';
-      $('dept-email').value = '';
-      $('dept-whatsapp').value = '';
-      $('dept-color').value = '#3B82F6';
-      $('dept-color-hex').textContent = '#3B82F6';
-      $('dept-modal').style.display = 'flex';
-    }
-
-    function openEditDept(dept) {
-      if (!dept) return;
-      $('dept-modal-title').textContent = 'Edit Department';
-      $('dept-edit-id').value = dept.id;
-      $('dept-name').value = dept.name;
-      $('dept-hod').value = dept.head_name || '';
-      $('dept-email').value = dept.head_email || '';
-      $('dept-whatsapp').value = dept.head_whatsapp || '';
-      $('dept-color').value = dept.stream_color || '#3B82F6';
-      $('dept-color-hex').textContent = dept.stream_color || '#3B82F6';
-      $('dept-modal').style.display = 'flex';
-    }
-
-    function closeModal() {
-      document.querySelectorAll('.admin-modal-overlay').forEach(m => m.style.display = 'none');
-    }
-
-    async function saveDept() {
-      const id = $('dept-edit-id').value;
-      const payload = {
-        name: $('dept-name').value.trim(),
-        head_name: $('dept-hod').value.trim(),
-        head_email: $('dept-email').value.trim(),
-        head_whatsapp: $('dept-whatsapp').value.trim(),
-        stream_color: $('dept-color').value,
-        password: adminPw
-      };
-      if (!payload.name) { alert('Department name is required'); return; }
-      const url = id ? `/api/admin/departments/${id}` : '/api/admin/departments';
-      const method = id ? 'PUT' : 'POST';
-      const res = await fetch(url, { method, headers: adminHeaders(), body: JSON.stringify(payload) });
-      if (res.ok) { closeModal(); loadDepartments(); loadStatus(); }
-      else { const data = await res.json(); alert('Failed: ' + (data.error || res.status)); }
-    }
-
-    async function deleteDept(id, name) {
-      if (!confirm(`Delete department "${name}"? This cannot be undone.`)) return;
-      const res = await fetch(`/api/admin/departments/${id}`, {
-        method: 'DELETE', headers: adminHeaders(), body: JSON.stringify({ password: adminPw })
-      });
-      if (res.ok) { loadDepartments(); loadStatus(); }
-      else alert('Failed to delete department');
-    }
-
-    // ── Brand Guidelines ────────────────────────────
-    async function loadBrandConfig() {
-      const res = await fetch('/api/admin/settings', { headers: adminHeaders() });
-      if (!res.ok) return;
-      const { brand_config: bc } = await res.json();
-      if (!bc) return;
-      $('brand-company').value = bc.company_name || '';
-      $('brand-subtitle').value = bc.company_subtitle || '';
-      $('brand-font').value = bc.font_name || '';
-      $('brand-bg-color').value = bc.background_color || '#0F172A';
-      $('brand-primary-color').value = bc.primary_color || '#3B82F6';
-      $('brand-text-color').value = bc.text_color || '#F1F5F9';
-      $('brand-muted-color').value = bc.muted_color || '#94A3B8';
-      $('brand-panel-color').value = bc.panel_color || '#1E293B';
-      syncColorHexLabels();
-      // Logo preview
-      if (bc.logo_path) {
-        $('brand-logo-preview').src = '/uploads/brand/logo.png?' + Date.now();
-        $('brand-logo-preview').style.display = 'block';
-        $('brand-logo-empty').style.display = 'none';
-      }
-    }
-
-    function syncColorHexLabels() {
-      document.querySelectorAll('.color-hex').forEach(span => {
-        const input = $(span.dataset.for);
-        if (input) span.textContent = input.value.toUpperCase();
-      });
-    }
-
-    async function saveBrandConfig() {
-      const bc = {
-        company_name: $('brand-company').value.trim(),
-        company_subtitle: $('brand-subtitle').value.trim(),
-        font_name: $('brand-font').value.trim() || 'Calibri',
-        background_color: $('brand-bg-color').value,
-        primary_color: $('brand-primary-color').value,
-        text_color: $('brand-text-color').value,
-        muted_color: $('brand-muted-color').value,
-        panel_color: $('brand-panel-color').value
-      };
-      // Preserve logo_path if it exists
-      const curr = await fetch('/api/admin/settings', { headers: adminHeaders() });
-      if (curr.ok) {
-        const data = await curr.json();
-        if (data.brand_config && data.brand_config.logo_path) bc.logo_path = data.brand_config.logo_path;
-      }
-      const res = await fetch('/api/admin/settings', {
-        method: 'PUT', headers: adminHeaders(), body: JSON.stringify({ brand_config: bc })
-      });
-      if (res.ok) flash('brand-saved');
-      else alert('Failed to save brand settings');
-    }
-
-    async function uploadLogo() {
-      const file = $('brand-logo-file').files[0];
-      if (!file) return;
-      const fd = new FormData();
-      fd.append('logo', file);
-      const res = await fetch('/api/admin/brand-logo', {
-        method: 'POST',
-        headers: { 'x-admin-password': adminPw },
-        body: fd
-      });
-      if (res.ok) {
-        $('brand-logo-preview').src = '/uploads/brand/logo.png?' + Date.now();
-        $('brand-logo-preview').style.display = 'block';
-        $('brand-logo-empty').style.display = 'none';
-      } else {
-        alert('Logo upload failed');
-      }
-    }
-
-    // ── Report Structure ────────────────────────────
-    const SLIDE_TYPES = [
-      {
-        key: 'overview',
-        name: 'Master Overview',
-        desc: 'Event summary with all departments, progress grid, and overall average.',
-        options: [
-          { key: 'show_average', label: 'Show overall average completion', default: true },
-          { key: 'show_badges', label: 'Show status badges (On Track / At Risk)', default: true }
-        ]
-      },
-      {
-        key: 'dept_overview',
-        name: 'Department Overview',
-        desc: 'Per-department slide: progress %, status summary, highlights, and blockers.',
-        options: [
-          { key: 'show_highlights', label: 'Show highlights section', default: true },
-          { key: 'show_blockers', label: 'Show blockers section', default: true }
-        ]
-      },
-      {
-        key: 'dept_schedule',
-        name: 'Schedule & Chart',
-        desc: 'Per-department schedule table with activity status and a donut chart.',
-        options: [
-          { key: 'show_donut', label: 'Show completion donut chart', default: true }
-        ]
-      },
-      {
-        key: 'dept_photos',
-        name: 'Photo Wall',
-        desc: 'Grid of progress photos uploaded by the HOD.',
-        options: [
-          { key: 'photos_per_page', label: 'Photos per page', default: 6, type: 'select', choices: [4, 6, 9] },
-          { key: 'show_timestamps', label: 'Show photo timestamps', default: true }
-        ]
-      },
-      {
-        key: 'no_submission',
-        name: 'No Submission Notice',
-        desc: 'Placeholder slide for departments that did not submit.',
-        options: []
-      }
-    ];
-
-    let reportConfig = {};
-
-    function renderSlideTypes() {
-      const list = $('slide-type-list');
-      list.innerHTML = '';
-      const order = reportConfig.slide_order || SLIDE_TYPES.map(s => s.key);
-
-      order.forEach((key, idx) => {
-        const type = SLIDE_TYPES.find(t => t.key === key);
-        if (!type) return;
-        const cfg = reportConfig[key] || {};
-        const enabled = cfg.enabled !== false;
-
-        const card = document.createElement('div');
-        card.className = 'slide-type-card' + (enabled ? '' : ' disabled');
-        card.dataset.key = key;
-
-        let optionsHtml = '';
-        type.options.forEach(opt => {
-          if (opt.type === 'select') {
-            const val = cfg[opt.key] !== undefined ? cfg[opt.key] : opt.default;
-            const opts = opt.choices.map(c => `<option value="${c}" ${c == val ? 'selected' : ''}>${c}</option>`).join('');
-            optionsHtml += `<div class="slide-opt"><label>${opt.label}</label><select data-opt="${opt.key}">${opts}</select></div>`;
-          } else {
-            const checked = cfg[opt.key] !== undefined ? cfg[opt.key] : opt.default;
-            optionsHtml += `<div class="slide-opt"><label><input type="checkbox" data-opt="${opt.key}" ${checked ? 'checked' : ''} /> ${opt.label}</label></div>`;
-          }
-        });
-
-        card.innerHTML = `
-          <div class="slide-type-header">
-            <div class="slide-type-reorder">
-              <button class="arrow-btn up" data-dir="up" ${idx === 0 ? 'disabled' : ''}>&#9650;</button>
-              <button class="arrow-btn down" data-dir="down" ${idx === order.length - 1 ? 'disabled' : ''}>&#9660;</button>
-            </div>
-            <label class="slide-type-toggle">
-              <input type="checkbox" class="slide-enable" ${enabled ? 'checked' : ''} />
-              <span class="slide-type-name">${type.name}</span>
-            </label>
+        <div class="panel-box panel-gap">
+          <h4>Email Sending</h4>
+          <div class="field" style="max-width:340px;">
+            <label for="dl-sender">Sender display name</label>
+            <input type="text" class="input" id="dl-sender" placeholder="CLIO Reports" />
           </div>
-          <div class="slide-type-desc">${type.desc}</div>
-          ${optionsHtml ? `<div class="slide-type-options">${optionsHtml}</div>` : ''}
-        `;
-        list.appendChild(card);
-      });
+          <label class="switch"><input type="checkbox" id="dl-auto" /><span class="track"></span>Auto-email the report to the PM team when generated</label>
+          <p class="panel-note">SMTP credentials (host, port, user, pass) live in the server <b>.env</b> file.</p>
+        </div>
 
-      // Wire events
-      list.querySelectorAll('.arrow-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const card = btn.closest('.slide-type-card');
-          const key = card.dataset.key;
-          const order = reportConfig.slide_order || SLIDE_TYPES.map(s => s.key);
-          const i = order.indexOf(key);
-          if (btn.dataset.dir === 'up' && i > 0) { [order[i], order[i-1]] = [order[i-1], order[i]]; }
-          if (btn.dataset.dir === 'down' && i < order.length - 1) { [order[i], order[i+1]] = [order[i+1], order[i]]; }
-          reportConfig.slide_order = order;
-          renderSlideTypes();
-        });
-      });
-    }
-
-    function collectReportConfig() {
-      const order = reportConfig.slide_order || SLIDE_TYPES.map(s => s.key);
-      const cfg = { slide_dimensions: $('report-dimensions').value, slide_order: order };
-      document.querySelectorAll('.slide-type-card').forEach(card => {
-        const key = card.dataset.key;
-        cfg[key] = { enabled: card.querySelector('.slide-enable').checked };
-        card.querySelectorAll('[data-opt]').forEach(el => {
-          const optKey = el.dataset.opt;
-          if (el.type === 'checkbox') cfg[key][optKey] = el.checked;
-          else if (el.tagName === 'SELECT') cfg[key][optKey] = isNaN(el.value) ? el.value : Number(el.value);
-        });
-      });
-      return cfg;
-    }
-
-    async function loadReportConfig() {
-      const res = await fetch('/api/admin/settings', { headers: adminHeaders() });
-      if (!res.ok) return;
-      const { report_config: rc } = await res.json();
-      reportConfig = rc || {};
-      $('report-dimensions').value = reportConfig.slide_dimensions || '16:9';
-      renderSlideTypes();
-    }
-
-    async function saveReportConfig() {
-      const cfg = collectReportConfig();
-      const res = await fetch('/api/admin/settings', {
-        method: 'PUT', headers: adminHeaders(), body: JSON.stringify({ report_config: cfg })
-      });
-      if (res.ok) { reportConfig = cfg; flash('report-saved'); }
-      else alert('Failed to save report settings');
-    }
-
-    // ── Delivery ────────────────────────────────────
-    let pmEmails = [];
-
-    function renderPmEmailChips() {
-      const container = $('pm-email-chips');
-      container.innerHTML = '';
-      pmEmails.forEach((email, idx) => {
-        const chip = document.createElement('span');
-        chip.className = 'admin-chip';
-        chip.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--panel);border:1px solid var(--border);border-radius:20px;font-size:13px;';
-        chip.innerHTML = `${email} <button style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;line-height:1;padding:0;" data-idx="${idx}">&times;</button>`;
-        chip.querySelector('button').addEventListener('click', () => removePmEmail(idx));
-        container.appendChild(chip);
-      });
-      if (pmEmails.length === 0) {
-        container.innerHTML = '<span style="color:var(--muted);font-size:13px;">No recipients configured.</span>';
-      }
-    }
-
-    function addPmEmail() {
-      const input = $('pm-email-input');
-      const email = input.value.trim();
-      if (!email) return;
-      if (pmEmails.includes(email)) { alert('Email already added.'); return; }
-      pmEmails.push(email);
-      input.value = '';
-      renderPmEmailChips();
-    }
-
-    function removePmEmail(idx) {
-      pmEmails.splice(idx, 1);
-      renderPmEmailChips();
-    }
-
-    async function loadDeliveryConfig() {
-      const res = await fetch('/api/admin/settings', { headers: adminHeaders() });
-      if (!res.ok) return;
-      const data = await res.json();
-      pmEmails = data.pm_emails || [];
-      renderPmEmailChips();
-      const dc = data.delivery_config || {};
-      $('delivery-sender-name').value = dc.sender_name || '';
-      $('delivery-auto-email').checked = !!dc.auto_email;
-      $('delivery-anthropic-key').value = dc.anthropic_api_key || '';
-      $('delivery-archive-path').value = dc.archive_path || '';
-    }
-
-    async function saveDeliveryConfig() {
-      const dc = {
-        sender_name: $('delivery-sender-name').value.trim(),
-        auto_email: $('delivery-auto-email').checked,
-        anthropic_api_key: $('delivery-anthropic-key').value.trim(),
-        archive_path: $('delivery-archive-path').value.trim()
-      };
-      const res = await fetch('/api/admin/settings', {
-        method: 'PUT', headers: adminHeaders(),
-        body: JSON.stringify({ pm_emails: pmEmails, delivery_config: dc })
-      });
-      if (res.ok) flash('delivery-saved');
-      else alert('Failed to save delivery settings');
-    }
-
-    // ── Schedule ────────────────────────────────────
-    async function loadScheduleConfig() {
-      try {
-        const res = await fetch('/api/admin/schedule', { headers: adminHeaders() });
-        if (res.ok) {
-          const data = await res.json();
-          $('schedule-reminder-time').value = data.reminder_time || '21:00';
-          $('schedule-report-time').value = data.report_time || '23:00';
-          $('schedule-deadline-text').value = data.deadline_text || '11:00 PM';
-        }
-      } catch {}
-      // Timezone from status
-      try {
-        const sres = await fetch('/api/status');
-        if (sres.ok) {
-          const sdata = await sres.json();
-          $('schedule-timezone').value = sdata.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
-        }
-      } catch {
-        $('schedule-timezone').value = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      }
-    }
-
-    async function saveScheduleConfig() {
-      const payload = {
-        reminder_time: $('schedule-reminder-time').value,
-        report_time: $('schedule-report-time').value,
-        deadline_text: $('schedule-deadline-text').value.trim()
-      };
-      const res = await fetch('/api/admin/schedule', {
-        method: 'PUT', headers: adminHeaders(),
-        body: JSON.stringify(payload)
-      });
-      if (res.ok) flash('schedule-saved');
-      else alert('Failed to save schedule settings');
-    }
-
-    // ── Archive ─────────────────────────────────────
-    let archiveDates = [];
-
-    async function loadArchiveDates() {
-      const res = await fetch(`/api/archive?password=${encodeURIComponent(adminPw)}`);
-      if (!res.ok) { $('archive-date-list').innerHTML = '<span style="color:var(--muted);font-size:13px;">No archive data available or endpoint not configured.</span>'; return; }
-      archiveDates = await res.json();
-      const container = $('archive-date-list');
-      container.innerHTML = '';
-      if (!Array.isArray(archiveDates) || archiveDates.length === 0) {
-        container.innerHTML = '<span style="color:var(--muted);font-size:13px;">No dates found.</span>';
-        return;
-      }
-      archiveDates.forEach(item => {
-        const dateStr = typeof item === 'string' ? item : item.date;
-        const count = typeof item === 'object' ? item.count || 0 : '';
-        const btn = document.createElement('button');
-        btn.className = 'admin-btn-sm';
-        btn.style.cssText = 'margin:0;';
-        btn.textContent = dateStr + (count ? ` (${count})` : '');
-        btn.addEventListener('click', () => {
-          $('archive-date-picker').value = dateStr;
-          loadArchiveDate(dateStr);
-        });
-        container.appendChild(btn);
-      });
-    }
-
-    async function loadArchiveDate(date) {
-      if (!date) return;
-      const res = await fetch(`/api/archive/${date}?password=${encodeURIComponent(adminPw)}`);
-      if (!res.ok) { alert('Failed to load archive for ' + date); return; }
-      const depts = await res.json();
-      $('archive-detail').style.display = 'block';
-      $('archive-detail-title').textContent = 'Submissions for ' + date;
-      const list = $('archive-dept-list');
-      list.innerHTML = '';
-
-      if (!Array.isArray(depts) || depts.length === 0) {
-        list.innerHTML = '<p style="color:var(--muted);">No submissions found for this date.</p>';
-        return;
-      }
-
-      depts.forEach(dept => {
-        const card = document.createElement('div');
-        card.className = 'admin-card';
-        card.style.cssText = 'margin-bottom:12px;';
-
-        const color = dept.stream_color || 'var(--primary)';
-        const submitted = dept.submitted ? 'Yes' : 'No';
-        const progress = dept.overall_progress || dept.progress || 0;
-        const photoCount = dept.photo_count || (dept.photos ? dept.photos.length : 0);
-        const time = dept.submitted_at || 'n/a';
-
-        card.innerHTML = `
-          <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" class="archive-dept-header">
-            <div style="display:flex;align-items:center;gap:10px;">
-              <span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:${color};"></span>
-              <strong>${dept.name || dept.department_name || 'Unknown'}</strong>
-            </div>
-            <div style="display:flex;gap:16px;align-items:center;font-size:13px;color:var(--muted);">
-              <span>${submitted === 'Yes' ? '&#10003;' : '&#10007;'} ${submitted}</span>
-              <span>${progress}%</span>
-              <span>${time}</span>
-              <span>${photoCount} photo${photoCount !== 1 ? 's' : ''}</span>
-              <button class="admin-btn-sm archive-expand-btn">View</button>
+        <div class="panel-box panel-gap">
+          <h4>AI Content Review</h4>
+          <p class="panel-note panel-gap">Polishes HOD submissions for grammar, spelling, and writing style before they land in the deck. Leave empty to disable.</p>
+          <div class="field" style="max-width:420px;margin-bottom:4px;">
+            <label for="dl-anthropic">Anthropic API key</label>
+            <div class="reveal-wrap">
+              <input type="password" class="input" id="dl-anthropic" placeholder="sk-ant-..." autocomplete="off" />
+              <button type="button" class="reveal-btn" id="dl-anthropic-reveal">Show</button>
             </div>
           </div>
-          <div class="archive-dept-detail" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
-            <pre style="font-size:12px;color:var(--muted);white-space:pre-wrap;max-height:300px;overflow:auto;margin-bottom:12px;">${JSON.stringify(dept, null, 2)}</pre>
-            <div class="archive-photos" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+        </div>
+
+        <div class="panel-box">
+          <h4>Cloud / Storage</h4>
+          <div class="field" style="max-width:420px;margin-bottom:4px;">
+            <label for="dl-archive">Data archive location</label>
+            <input type="text" class="input" id="dl-archive" placeholder="/mnt/shared/clio-archive or S3 bucket URL" />
+            <p class="hint">Informational. Configure actual storage paths in the server environment.</p>
           </div>
-        `;
+        </div>
 
-        const expandBtn = card.querySelector('.archive-expand-btn');
-        const detail = card.querySelector('.archive-dept-detail');
-        const photosDiv = card.querySelector('.archive-photos');
+        <div class="save-bar">
+          <button type="button" class="action-btn primary" id="delivery-save">Save delivery settings</button>
+        </div>
+      </section>
 
-        expandBtn.addEventListener('click', () => {
-          const showing = detail.style.display !== 'none';
-          detail.style.display = showing ? 'none' : 'block';
-          expandBtn.textContent = showing ? 'View' : 'Hide';
-          if (!showing && photosDiv.children.length === 0) {
-            const photos = dept.photos || [];
-            photos.forEach(photo => {
-              const url = typeof photo === 'string' ? photo : photo.url || photo.path;
-              if (!url) return;
-              const apiUrl = url.startsWith('/api/') || url.startsWith('http')
-                ? url + (url.includes('?') ? '&' : '?') + 'password=' + encodeURIComponent(adminPw)
-                : `/api/archive/${date}/${dept.id || dept.department_id || ''}/${url}?password=${encodeURIComponent(adminPw)}`;
-              const img = document.createElement('img');
-              img.src = apiUrl;
-              img.style.cssText = 'width:120px;height:90px;object-fit:cover;border-radius:6px;border:1px solid var(--border);';
-              img.onerror = function() { this.style.display = 'none'; };
-              photosDiv.appendChild(img);
-            });
-            if (photos.length === 0) {
-              photosDiv.innerHTML = '<span style="color:var(--muted);font-size:12px;">No photos.</span>';
-            }
-          }
-        });
+      <!-- ── Schedule ──────────────────────────────────────── -->
+      <section class="admin-section" id="sec-schedule">
+        <div class="admin-topline">
+          <h1>Schedule</h1>
+        </div>
+        <div class="panel-box">
+          <h4>Nightly Timing</h4>
+          <div class="form-cols" style="max-width:560px;">
+            <div class="field">
+              <label for="sch-reminder">Reminder time</label>
+              <input type="time" class="input" id="sch-reminder" value="21:00" />
+              <p class="hint">When pending HODs get their nudge.</p>
+            </div>
+            <div class="field">
+              <label for="sch-report">Report generation time</label>
+              <input type="time" class="input" id="sch-report" value="23:00" />
+              <p class="hint">When the deck is generated and emailed.</p>
+            </div>
+          </div>
+          <div class="field" style="max-width:340px;">
+            <label for="sch-deadline">Submission deadline (display text)</label>
+            <input type="text" class="input" id="sch-deadline" placeholder="11:00 PM" />
+            <p class="hint">Shown to HODs on the portal as the deadline.</p>
+          </div>
+          <div class="field" style="max-width:340px;">
+            <label for="sch-tz">Timezone</label>
+            <input type="text" class="input" id="sch-tz" disabled />
+            <p class="hint">Set on the server via the TIMEZONE env. Shown for reference.</p>
+          </div>
+          <p class="panel-note"><b>Saving restarts the schedulers immediately.</b> New times take effect tonight, no server restart needed.</p>
+        </div>
+        <div class="save-bar">
+          <button type="button" class="action-btn primary" id="schedule-save">Save schedule</button>
+        </div>
+      </section>
 
-        list.appendChild(card);
-      });
-    }
+      <!-- ── Archive ───────────────────────────────────────── -->
+      <section class="admin-section" id="sec-archive">
+        <div class="admin-topline">
+          <h1>Archive</h1>
+        </div>
+        <div class="panel-box panel-gap">
+          <h4>Dates</h4>
+          <div class="arch-dates" id="arch-dates"></div>
+        </div>
+        <div id="arch-detail" hidden>
+          <div class="panel-box">
+            <h4 id="arch-detail-title">Submissions</h4>
+            <div id="arch-cards"></div>
+          </div>
+        </div>
+      </section>
 
-    // ── Init ────────────────────────────────────────
-    async function enterDash() {
-      $('login-view').style.display = 'none';
-      $('dash-view').style.display = 'block';
-      $('hist-date').value = todayIso();
-      await loadStatus();
-      await loadLogs();
-      setInterval(loadStatus, 60000);
-    }
+      <!-- ── Project ───────────────────────────────────────── -->
+      <section class="admin-section" id="sec-project">
+        <div class="admin-topline">
+          <h1>Project</h1>
+        </div>
+        <div class="panel-box">
+          <h4>Event</h4>
+          <p class="panel-note panel-gap">Shown on the operator portal header and across the report deck.</p>
+          <div class="field" style="max-width:420px;">
+            <label for="prj-name">Event name</label>
+            <input type="text" class="input" id="prj-name" placeholder="e.g. Skyline Festival 2026" />
+          </div>
+          <div class="field" style="max-width:420px;margin-bottom:4px;">
+            <label for="prj-edition">Edition / phase</label>
+            <input type="text" class="input" id="prj-edition" placeholder="e.g. Day 14, Build Phase" />
+          </div>
+        </div>
+        <div class="save-bar">
+          <button type="button" class="action-btn primary" id="project-save">Save project</button>
+        </div>
+      </section>
 
-    async function tryLogin() {
-      const pw = $('admin-pw').value;
-      const ok = await verify(pw);
-      if (!ok) { $('login-err').style.display = 'block'; return; }
-      adminPw = pw;
-      sessionStorage.setItem('clio_admin_pw', pw);
-      enterDash();
-    }
+    </main>
+  </div>
 
-    document.addEventListener('DOMContentLoaded', async () => {
-      initTabs();
+  <div class="toast-stack" id="toast-stack"></div>
 
-      // Overview
-      $('login-btn').addEventListener('click', tryLogin);
-      $('admin-pw').addEventListener('keypress', e => { if (e.key === 'Enter') tryLogin(); });
-      $('gen-now-btn').addEventListener('click', () => generateNow(todayIso()));
-      $('hist-btn').addEventListener('click', () => { const d = $('hist-date').value; if (d) generateNow(d); });
-      $('remind-btn').addEventListener('click', sendReminders);
-      $('download-btn').addEventListener('click', downloadToday);
-
-      // Settings
-      $('save-settings-btn').addEventListener('click', saveSettings);
-
-      // Departments
-      $('add-dept-btn').addEventListener('click', openAddDept);
-      $('dept-save-btn').addEventListener('click', saveDept);
-      $('dept-cancel-btn').addEventListener('click', closeModal);
-      $('dept-modal').addEventListener('click', e => { if (e.target === $('dept-modal')) closeModal(); });
-      $('dept-color').addEventListener('input', e => { $('dept-color-hex').textContent = e.target.value; });
-
-      // Brand
-      $('upload-logo-btn').addEventListener('click', () => $('brand-logo-file').click());
-      $('brand-logo-file').addEventListener('change', uploadLogo);
-      $('save-brand-btn').addEventListener('click', saveBrandConfig);
-      document.querySelectorAll('.color-grid input[type=color]').forEach(inp => {
-        inp.addEventListener('input', syncColorHexLabels);
-      });
-
-      // Report
-      $('save-report-btn').addEventListener('click', saveReportConfig);
-
-      // Delivery
-      $('add-pm-email-btn').addEventListener('click', addPmEmail);
-      $('pm-email-input').addEventListener('keypress', e => { if (e.key === 'Enter') addPmEmail(); });
-      $('save-delivery-btn').addEventListener('click', saveDeliveryConfig);
-
-      // Schedule
-      $('save-schedule-btn').addEventListener('click', saveScheduleConfig);
-
-      // Archive
-      $('archive-load-date-btn').addEventListener('click', () => {
-        const d = $('archive-date-picker').value;
-        if (d) loadArchiveDate(d);
-      });
-
-      if (adminPw && await verify(adminPw)) enterDash();
-    });
-  })();
-  </script>
+  <script src="admin.js"></script>
 </body>
 </html>

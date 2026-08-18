@@ -12,155 +12,195 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="app">
+  <div class="app" id="app">
 
-    <!-- SCREEN 1: department select -->
-    <section id="screen-select" class="screen active">
-      <div class="portal-logo" id="portal-logo" hidden>
-        <img id="brand-logo" alt="Event logo" />
-      </div>
-      <header class="event-head rise">
-        <span class="ev-label">Daily Report</span>
-        <div class="ev-name" id="ev-name">Loading…</div>
-        <div class="ev-meta">
-          <span class="pill" id="pill-date"></span>
-          <span class="pill warn" id="pill-deadline" hidden></span>
+    <!-- Left rail on desktop; identity header + collapsed team status on phones -->
+    <aside class="side-rail" id="side-rail" hidden>
+      <div class="rail-head">
+        <div class="portal-logo" id="portal-logo" hidden>
+          <img id="brand-logo" alt="Event logo" />
         </div>
-      </header>
-      <div class="team-line rise d1" id="team-line"></div>
-      <div class="dept-list rise d2" id="dept-list"></div>
-      <div class="error-banner" id="select-error">
-        <span id="select-error-text"></span>
-        <button type="button" class="btn-dismiss" id="select-error-dismiss" aria-label="Dismiss error">&times;</button>
+        <header class="event-head rise">
+          <span class="ev-label">Daily Report</span>
+          <div class="ev-name" id="ev-name">Loading&hellip;</div>
+          <div class="ev-meta">
+            <span class="pill" id="pill-date"></span>
+            <span class="pill warn" id="pill-deadline" hidden></span>
+          </div>
+        </header>
+        <div class="rail-dept rise d1" id="rail-dept">
+          <span class="dot" id="rail-dept-dot"></span>
+          <span class="rail-dept-name" id="rail-dept-name"></span>
+          <button type="button" class="logout-btn" id="logout-btn">Log out</button>
+        </div>
       </div>
+
+      <div class="team-panel rise d2" id="team-panel">
+        <button type="button" class="team-toggle" id="team-toggle" aria-expanded="false" aria-controls="team-list">
+          <span class="tt-label">Team status</span>
+          <span class="tt-count" id="team-count"></span>
+          <span class="chev" aria-hidden="true">&#9662;</span>
+        </button>
+        <div class="team-list" id="team-list"></div>
+      </div>
+
       <footer class="portal-foot" id="portal-foot" hidden></footer>
-    </section>
+    </aside>
 
-    <!-- SCREEN 2: read-only summary of a submitted report -->
-    <section id="screen-readonly" class="screen">
-      <button type="button" class="back-btn" id="ro-back"><span class="chev">&#8249;</span> Departments</button>
-      <div class="ro-head">
-        <div class="ro-dept"><span class="dot" id="ro-dot"></span><span id="ro-dept-name"></span></div>
-        <div class="ro-meta">
-          <span class="pill" id="ro-pill-time"></span>
-          <span class="pill" id="ro-pill-version"></span>
+    <main class="pane" id="pane">
+
+      <div class="error-banner" id="portal-error">
+        <span id="portal-error-text"></span>
+        <button type="button" class="btn-dismiss" id="portal-error-dismiss" aria-label="Dismiss error">&times;</button>
+      </div>
+
+      <!-- SCREEN 0: sign in -->
+      <section id="screen-login" class="screen">
+        <div class="login-card rise">
+          <div class="portal-logo" id="login-logo" hidden>
+            <img id="login-logo-img" alt="Event logo" />
+          </div>
+          <span class="ev-label">Daily Report</span>
+          <div class="ev-name login-ev" id="login-ev-name">Loading&hellip;</div>
+          <div class="field">
+            <label for="login-user">Username</label>
+            <input type="text" class="input" id="login-user" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="your.department" />
+          </div>
+          <div class="field">
+            <label for="login-pass">Password</label>
+            <input type="password" class="input" id="login-pass" autocomplete="current-password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" />
+          </div>
+          <div class="error-banner" id="login-error"></div>
+          <button type="button" class="btn-primary" id="login-btn">Sign in</button>
+          <p class="login-help">No account yet? Ask your event admin for credentials.</p>
         </div>
-      </div>
+      </section>
 
-      <div class="ro-block">
-        <div class="ro-label">Progress</div>
-        <div class="ro-progress">
-          <div class="bar"><i id="ro-bar"></i></div>
-          <span class="pct" id="ro-pct">0%</span>
+      <!-- SCREEN 1: read-only summary of a submitted report -->
+      <section id="screen-readonly" class="screen">
+        <div class="ro-head">
+          <div class="ro-dept"><span class="dot" id="ro-dot"></span><span id="ro-dept-name"></span></div>
+          <div class="ro-meta">
+            <span class="pill" id="ro-pill-time"></span>
+            <span class="pill" id="ro-pill-version"></span>
+          </div>
         </div>
-      </div>
-      <div class="ro-block">
-        <div class="ro-label">Today's status</div>
-        <div class="ro-text" id="ro-status"></div>
-      </div>
-      <div class="ro-block">
-        <div class="ro-label">Highlights</div>
-        <div class="ro-text" id="ro-highlights"></div>
-      </div>
-      <div class="ro-block" id="ro-blockers-wrap">
-        <div class="ro-label blocked">Blockers</div>
-        <div class="ro-text" id="ro-blockers"></div>
-      </div>
-      <div class="ro-block" id="ro-schedule-wrap">
-        <div class="ro-label">Schedule updates</div>
-        <div id="ro-schedule"></div>
-      </div>
-      <div class="ro-block" id="ro-photos-wrap">
-        <div class="ro-label">Photos</div>
-        <div class="photo-grid" id="ro-photos"></div>
-      </div>
 
-      <div class="cta-bar">
-        <button type="button" class="btn-primary" id="ro-edit-btn">Edit my submission</button>
-      </div>
-    </section>
-
-    <!-- SCREEN 3: three-step form -->
-    <section id="screen-form" class="screen">
-      <button type="button" class="back-btn" id="form-back"><span class="chev">&#8249;</span> <span id="form-back-label">Back</span></button>
-      <div class="stepper" aria-hidden="true">
-        <span class="s" id="step-seg-1"></span>
-        <span class="s" id="step-seg-2"></span>
-        <span class="s" id="step-seg-3"></span>
-      </div>
-      <h1 class="form-title" id="form-title"></h1>
-      <div class="form-sub" id="form-sub"></div>
-      <div class="error-banner" id="form-error"></div>
-
-      <!-- Step 1: Progress -->
-      <div class="step-pane" id="step-1">
-        <div class="progress-block">
-          <div class="big-pct"><span id="big-pct">0</span><small>%</small></div>
-          <input type="range" class="range" id="progress-range" min="0" max="100" step="1" value="0"
-                 aria-label="Overall progress percent" />
-          <div class="slider-scale"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+        <div class="ro-block">
+          <div class="ro-label">Progress</div>
+          <div class="ro-progress">
+            <div class="bar"><i id="ro-bar"></i></div>
+            <span class="pct" id="ro-pct">0%</span>
+          </div>
         </div>
-        <p class="progress-hint">How far along is your department against today's plan?</p>
-      </div>
+        <div class="ro-block">
+          <div class="ro-label">Today's status</div>
+          <div class="ro-text" id="ro-status"></div>
+        </div>
+        <div class="ro-block">
+          <div class="ro-label">Highlights</div>
+          <div class="ro-text" id="ro-highlights"></div>
+        </div>
+        <div class="ro-block" id="ro-blockers-wrap">
+          <div class="ro-label blocked">Blockers</div>
+          <div class="ro-text" id="ro-blockers"></div>
+        </div>
+        <div class="ro-block" id="ro-schedule-wrap">
+          <div class="ro-label">Schedule updates</div>
+          <div id="ro-schedule"></div>
+        </div>
+        <div class="ro-block" id="ro-photos-wrap">
+          <div class="ro-label">Photos</div>
+          <div class="photo-grid" id="ro-photos"></div>
+        </div>
 
-      <!-- Step 2: Notes -->
-      <div class="step-pane" id="step-2">
-        <div class="field">
-          <label for="status_text">Today's status <span class="req">*</span></label>
-          <textarea class="input" id="status_text" rows="3" maxlength="300" required
-                    placeholder="One or two sentences on today's overall state…"></textarea>
+        <div class="cta-bar">
+          <button type="button" class="btn-primary" id="ro-edit-btn">Edit my submission</button>
         </div>
-        <div class="field">
-          <label for="highlights">Highlights <span class="opt">optional</span></label>
-          <textarea class="input" id="highlights" rows="2"
-                    placeholder="Key wins, completions, milestones…"></textarea>
-        </div>
-        <div class="field">
-          <label for="blockers">Blockers <span class="opt">optional</span></label>
-          <textarea class="input" id="blockers" rows="2"
-                    placeholder="Anything blocking you?"></textarea>
-        </div>
-        <div class="field">
-          <span class="field-label" id="sched-label">Schedule updates <span class="opt">optional</span></span>
-          <div class="sched-rows" id="sched-rows" aria-label="Schedule updates, optional"></div>
-          <button type="button" class="add-row-btn" id="add-row-btn">+ Add activity</button>
-        </div>
-      </div>
+      </section>
 
-      <!-- Step 3: Photos -->
-      <div class="step-pane" id="step-3">
-        <p class="photos-help">Add progress photos and describe each one. <b>Captions print under the photos in the report deck.</b></p>
-        <div class="photo-grid" id="photo-grid"></div>
-        <input type="file" id="file-input" accept="image/*" multiple hidden />
-      </div>
-
-      <div class="autosave" id="autosave"></div>
-      <div class="cta-bar">
-        <button type="button" class="btn-primary" id="btn-continue">Continue</button>
-      </div>
-    </section>
-
-    <!-- SCREEN 4: success -->
-    <section id="screen-success" class="screen">
-      <div class="success-center">
-        <div class="check-ring">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+      <!-- SCREEN 2: three-step form -->
+      <section id="screen-form" class="screen">
+        <button type="button" class="back-btn" id="form-back"><span class="chev">&#8249;</span> <span id="form-back-label">Back</span></button>
+        <div class="stepper" aria-hidden="true">
+          <span class="s" id="step-seg-1"></span>
+          <span class="s" id="step-seg-2"></span>
+          <span class="s" id="step-seg-3"></span>
         </div>
-        <h1 id="success-title">Submitted</h1>
-        <p class="success-note" id="success-note">AI polishes your text for the report. You can edit your submission until the report is generated.</p>
-        <div class="receipt">
-          <div class="r-row"><span class="k">Department</span><span class="v" id="r-dept"></span></div>
-          <div class="r-row"><span class="k">Date</span><span class="v" id="r-date"></span></div>
-          <div class="r-row"><span class="k">Progress</span><span class="v" id="r-progress"></span></div>
-          <div class="r-row"><span class="k">Photos</span><span class="v" id="r-photos"></span></div>
-        </div>
-      </div>
-      <div class="cta-bar">
-        <button type="button" class="btn-ghost" id="btn-edit-again">Edit my submission</button>
-        <button type="button" class="btn-ghost" id="btn-done">Back to departments</button>
-      </div>
-    </section>
+        <h1 class="form-title" id="form-title"></h1>
+        <div class="form-sub" id="form-sub"></div>
+        <div class="error-banner" id="form-error"></div>
 
+        <!-- Step 1: Progress -->
+        <div class="step-pane" id="step-1">
+          <div class="progress-block">
+            <div class="big-pct"><span id="big-pct">0</span><small>%</small></div>
+            <input type="range" class="range" id="progress-range" min="0" max="100" step="1" value="0"
+                   aria-label="Overall progress percent" />
+            <div class="slider-scale"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+          </div>
+          <p class="progress-hint">How far along is your department against today's plan?</p>
+        </div>
+
+        <!-- Step 2: Notes -->
+        <div class="step-pane" id="step-2">
+          <div class="field">
+            <label for="status_text">Today's status <span class="req">*</span></label>
+            <textarea class="input" id="status_text" rows="3" maxlength="300" required
+                      placeholder="One or two sentences on today's overall state&hellip;"></textarea>
+          </div>
+          <div class="field">
+            <label for="highlights">Highlights <span class="opt">optional</span></label>
+            <textarea class="input" id="highlights" rows="2"
+                      placeholder="Key wins, completions, milestones&hellip;"></textarea>
+          </div>
+          <div class="field">
+            <label for="blockers">Blockers <span class="opt">optional</span></label>
+            <textarea class="input" id="blockers" rows="2"
+                      placeholder="Anything blocking you?"></textarea>
+          </div>
+          <div class="field">
+            <span class="field-label" id="sched-label">Schedule updates <span class="opt">optional</span></span>
+            <div class="sched-rows" id="sched-rows" aria-label="Schedule updates, optional"></div>
+            <button type="button" class="add-row-btn" id="add-row-btn">+ Add activity</button>
+          </div>
+        </div>
+
+        <!-- Step 3: Photos -->
+        <div class="step-pane" id="step-3">
+          <p class="photos-help">Add progress photos and describe each one. <b>Captions print under the photos in the report deck.</b></p>
+          <div class="photo-grid" id="photo-grid"></div>
+          <input type="file" id="file-input" accept="image/*" multiple hidden />
+        </div>
+
+        <div class="autosave" id="autosave"></div>
+        <div class="cta-bar">
+          <button type="button" class="btn-primary" id="btn-continue">Continue</button>
+        </div>
+      </section>
+
+      <!-- SCREEN 3: success -->
+      <section id="screen-success" class="screen">
+        <div class="success-center">
+          <div class="check-ring">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          </div>
+          <h1 id="success-title">Submitted</h1>
+          <p class="success-note" id="success-note">AI polishes your text for the report. You can edit your submission until the report is generated.</p>
+          <div class="receipt">
+            <div class="r-row"><span class="k">Department</span><span class="v" id="r-dept"></span></div>
+            <div class="r-row"><span class="k">Date</span><span class="v" id="r-date"></span></div>
+            <div class="r-row"><span class="k">Progress</span><span class="v" id="r-progress"></span></div>
+            <div class="r-row"><span class="k">Photos</span><span class="v" id="r-photos"></span></div>
+          </div>
+        </div>
+        <div class="cta-bar">
+          <button type="button" class="btn-ghost" id="btn-edit-again">Edit my submission</button>
+          <button type="button" class="btn-ghost" id="btn-done">View my submission</button>
+        </div>
+      </section>
+
+    </main>
   </div>
 
   <script src="app.js"></script>

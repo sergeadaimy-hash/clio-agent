@@ -22,7 +22,10 @@
     waTimer: null,            // WhatsApp inbox poll (10s while section visible)
     waThreads: [],            // last /api/admin/whatsapp/threads payload
     waActiveId: null,         // open thread id, null when nothing selected
-    waSearch: ''              // client-side thread filter
+    waSearch: '',             // client-side thread filter
+    archiveCache: new Map(),  // date -> /api/archive/{date} payload (drawer data)
+    drawerDept: null,         // department row shown in the detail drawer
+    drawerReturnFocus: null   // element to refocus when the drawer closes
   };
 
   // ── DOM utils ─────────────────────────────────────────────
@@ -238,9 +241,15 @@
     $('date-next').disabled = date >= state.today;
     $('date-next').style.opacity = date >= state.today ? 0.3 : 1;
 
+    // Fresh overview data invalidates the drawer's archive cache for this date.
+    state.archiveCache.delete(date);
+    state.ovDepts = depts;
+
     const byDept = new Map(subs.map(r => [r.department_id, r]));
     const withContact = depts.filter(d => (d.head_email || '').trim() || (d.head_whatsapp || '').trim());
-    const denom = withContact.length || depts.length;
+    // Denominator is every department: the report covers all streams,
+    // whether or not the HOD has contact details on file.
+    const denom = depts.length;
     const submitted = subs.length;
     const pendingWithContact = withContact.filter(d => !byDept.has(d.id));
     const unreachable = depts.filter(d => !byDept.has(d.id) && !withContact.includes(d));
@@ -293,7 +302,7 @@
   function streamRow(d, byDept, opts) {
     const sub = byDept.get(d.id);
     const row = document.createElement('div');
-    row.className = 'sub-row' + (sub ? '' : ' missing') + ((opts && opts.indent) ? ' sub-row-child' : '');
+    row.className = 'sub-row rowlink' + (sub ? '' : ' missing') + ((opts && opts.indent) ? ' sub-row-child' : '');
     const pct = sub ? (sub.overall_progress || 0) : 0;
     row.innerHTML = `
       <span class="swatch-dot" style="background:${escapeHtml(sub ? d.stream_color : 'var(--muted)')}"></span>
@@ -304,6 +313,15 @@
         ? `<span class="time">${escapeHtml(timeOnly(sub.submitted_at))}</span>`
         : `<button type="button" class="nudge" data-id="${d.id}" data-name="${escapeHtml(d.name)}">NUDGE</button>`}
     `;
+    // Whole row opens the submission drawer; keyboard reachable.
+    row.tabIndex = 0;
+    row.setAttribute('role', 'button');
+    row.setAttribute('aria-label', `${d.name}: open submission details`);
+    row.addEventListener('click', () => openStreamDrawer(d));
+    row.addEventListener('keydown', e => {
+      if (e.target !== row) return; // let the NUDGE button keep its own keys
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openStreamDrawer(d); }
+    });
     return row;
   }
 
@@ -338,7 +356,8 @@
       kids.forEach(k => box.appendChild(streamRow(k, byDept, { indent: true })));
     });
     box.querySelectorAll('.nudge').forEach(btn => {
-      btn.addEventListener('click', () => nudge(btn));
+      // stopPropagation keeps the row click (drawer) from firing on NUDGE.
+      btn.addEventListener('click', (e) => { e.stopPropagation(); nudge(btn); });
     });
   }
 
@@ -373,6 +392,108 @@
       <div class="l-row"><span class="l-dot" style="background:var(--amber)"></span>${pending} pending</div>
       <div class="l-row"><span class="l-dot" style="background:var(--border)"></span>${unreachable} no contact</div>
     `;
+  }
+
+  // ── Submission detail drawer ──────────────────────────────
+  async function fetchArchiveDate(date) {
+    if (state.archiveCache.has(date)) return state.archiveCache.get(date);
+    const data = await apiJson(`/api/archive/${date}`);
+    state.archiveCache.set(date, data);
+    return data;
+  }
+
+  function openStreamDrawer(d) {
+    state.drawerDept = d;
+    state.drawerReturnFocus = document.activeElement;
+    $('drawer-dot').style.background = d.stream_color || 'var(--muted)';
+    $('drawer-title').textContent = cap(d.name);
+    $('drawer-body').innerHTML = '<p class="panel-note">Loading&hellip;</p>';
+    $('drawer-overlay').hidden = false;
+    $('drawer-close').focus();
+    renderDrawer(d);
+  }
+
+  function closeDrawer() {
+    if ($('drawer-overlay').hidden) return;
+    $('drawer-overlay').hidden = true;
+    state.drawerDept = null;
+    const back = state.drawerReturnFocus;
+    state.drawerReturnFocus = null;
+    if (back && document.contains(back)) back.focus();
+  }
+
+  async function renderDrawer(d) {
+    const date = state.viewDate;
+    const body = $('drawer-body');
+    let arch;
+    try { arch = await fetchArchiveDate(date); }
+    catch (err) {
+      if (state.drawerDept !== d) return;
+      body.innerHTML = `<p class="panel-note">Could not load details: ${escapeHtml(err.message)}</p>`;
+      return;
+    }
+    if (state.drawerDept !== d) return; // drawer moved on or closed mid-flight
+
+    const row = (arch.departments || []).find(x => x.department === d.name);
+    const sub = row && row.submission;
+    if (!sub) { renderDrawerPending(d, date); return; }
+
+    const fields = [
+      ['Status', sub.status_text],
+      ['Highlights', sub.highlights],
+      ['Blockers', sub.blockers, true]
+    ].filter(([, v]) => (v || '').trim())
+      .map(([label, v, danger]) =>
+        `<div class="arch-field"><div class="af-label${danger ? ' blocked' : ''}">${label}</div><div class="af-text">${escapeHtml(v)}</div></div>`
+      ).join('');
+
+    const sched = (sub.schedule_updates || []).map(r =>
+      `<div class="af-text" style="font-size:11.5px;"><span style="font-family:var(--mono);color:var(--accent-2);">${escapeHtml(r.time || '')}</span> ${escapeHtml(r.activity || '')} <span style="color:var(--muted);font-family:var(--mono);font-size:9.5px;">${escapeHtml((r.status || '').toUpperCase())}</span></div>`
+    ).join('');
+
+    // Photo URLs carry the password: <img> tags cannot send headers.
+    const photos = (row.photos || []).map(p => {
+      const base = String(p.url || '').split('?')[0];
+      const src = `${base}?password=${encodeURIComponent(state.pw)}`;
+      return `<a href="${escapeHtml(src)}" target="_blank" rel="noopener"><img src="${escapeHtml(src)}" alt="${escapeHtml(p.filename || '')}" loading="lazy" /></a>`;
+    }).join('');
+
+    const pct = sub.overall_progress || 0;
+    body.innerHTML = `
+      <div class="drawer-meta">
+        <span class="st ok">SUBMITTED ${escapeHtml(timeOnly(sub.submitted_at))}</span>
+        <span class="pill">${escapeHtml(date)}</span>
+      </div>
+      <div class="arch-field" style="margin-top:0;">
+        <div class="af-label">Progress</div>
+        <div class="ro-progress"><div class="bar"><i style="width:${pct}%"></i></div><span class="pct">${pct}%</span></div>
+      </div>
+      ${fields}
+      ${sched ? `<div class="arch-field"><div class="af-label">Schedule</div>${sched}</div>` : ''}
+      ${photos ? `<div class="arch-field"><div class="af-label">Photos</div><div class="arch-photos">${photos}</div></div>` : ''}
+    `;
+  }
+
+  function renderDrawerPending(d, date) {
+    const body = $('drawer-body');
+    const contact = [
+      d.head_name ? `<b>${escapeHtml(d.head_name)}</b>` : '<span style="color:var(--muted)">No HOD name set</span>',
+      d.head_email ? escapeHtml(d.head_email) : null,
+      d.head_whatsapp ? escapeHtml(d.head_whatsapp) : null
+    ].filter(Boolean).join('<br>');
+    const reachable = (d.head_email || '').trim() || (d.head_whatsapp || '').trim();
+    body.innerHTML = `
+      <div class="drawer-pending">No submission yet for ${escapeHtml(date)}.</div>
+      <div class="arch-field">
+        <div class="af-label">HOD contact</div>
+        <div class="af-text">${contact}</div>
+      </div>
+      ${reachable
+        ? `<button type="button" class="nudge" data-id="${d.id}" data-name="${escapeHtml(d.name)}">NUDGE</button>`
+        : '<p class="panel-note" style="margin-top:14px;">No email or WhatsApp on file, so a nudge cannot reach this HOD. Add contact details under Departments.</p>'}
+    `;
+    const btn = body.querySelector('.nudge');
+    if (btn) btn.addEventListener('click', () => nudge(btn));
   }
 
   async function generateReport() {
@@ -469,7 +590,8 @@
         <span class="da-name">${escapeHtml(d.name)}</span>
         <span class="da-meta"><b>${escapeHtml(d.head_name || 'No HOD')}</b>
           ${d.head_email ? ' · ' + escapeHtml(d.head_email) : ''}
-          ${d.head_whatsapp ? ' · ' + escapeHtml(d.head_whatsapp) : ''}</span>
+          ${d.head_whatsapp ? ' · ' + escapeHtml(d.head_whatsapp) : ''}
+          ${(d.has_credentials && d.username) ? ' · @' + escapeHtml(d.username) : ''}</span>
         <span class="da-actions">
           <button type="button" class="btn-sm edit">Edit</button>
           <button type="button" class="btn-sm danger del">Delete</button>
@@ -513,6 +635,28 @@
              ${parentChoices.map(p => `<option value="${p.id}" ${d.parent_id === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
            </select></div>`;
 
+    // Credentials block (existing departments only: a new one has no id yet).
+    // Mirrors the server's default username pattern: slug, lowercased, dots.
+    const defaultUsername = (d.name || '')
+      .toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '')
+      .toLowerCase().replace(/_/g, '.');
+    const credBlock = isNew ? '' : `
+      <div class="cred-block">
+        <div class="cred-title">Portal login</div>
+        ${d.has_credentials ? `
+          <div class="cred-row">
+            <span class="cred-user">${escapeHtml(d.username || '')}</span>
+            <button type="button" class="btn-sm cred-regen">Regenerate password</button>
+            <button type="button" class="btn-sm danger cred-revoke">Revoke</button>
+          </div>` : `
+          <div class="cred-row">
+            <input type="text" class="input cred-username" value="${escapeHtml(defaultUsername)}" aria-label="Portal username" autocapitalize="none" spellcheck="false" />
+            <button type="button" class="btn-sm solid cred-gen">Generate login</button>
+          </div>`}
+        <p class="cred-err" hidden></p>
+        <p class="panel-note" style="margin-top:8px;">The HOD signs in to the portal with these credentials. The password is shown once at generation.</p>
+      </div>`;
+
     wrap.innerHTML = `
       <div class="form-cols">
         <div class="field"><label>Department name</label>
@@ -535,7 +679,9 @@
         <button type="button" class="btn-sm solid save">${isNew ? 'Create department' : 'Save changes'}</button>
         <button type="button" class="btn-sm cancel">Cancel</button>
       </div>
+      ${credBlock}
     `;
+    initCredBindings(wrap, d, isNew);
     const pick = wrap.querySelector('[data-f="color-pick"]');
     const hex = wrap.querySelector('[data-f="stream_color"]');
     pick.addEventListener('input', () => { hex.value = pick.value.toUpperCase(); });
@@ -569,6 +715,88 @@
   function addDepartment() {
     document.querySelectorAll('.dept-editor').forEach(e => e.remove());
     $('dept-list').prepend(deptEditor({}, state.departments || []));
+  }
+
+  // ── Portal credentials (per department) ───────────────────
+  function initCredBindings(wrap, d, isNew) {
+    if (isNew) return;
+    const errEl = wrap.querySelector('.cred-err');
+    const showCredErr = (msg) => { errEl.textContent = msg; errEl.hidden = false; };
+    const hideCredErr = () => { errEl.hidden = true; };
+
+    const gen = wrap.querySelector('.cred-gen');
+    if (gen) gen.addEventListener('click', async () => {
+      hideCredErr();
+      const username = wrap.querySelector('.cred-username').value.trim().toLowerCase();
+      if (!/^[a-z0-9._-]{3,40}$/.test(username)) {
+        showCredErr('Usernames are 3 to 40 characters: lowercase letters, digits, dots, dashes.');
+        return;
+      }
+      gen.disabled = true;
+      try {
+        const data = await apiJson(`/api/admin/departments/${d.id}/credentials`, {
+          method: 'POST', body: { username }
+        });
+        showCredModal(d.name, data.username, data.password);
+        loadDepartments();
+      } catch (err) {
+        showCredErr(/in use/i.test(err.message)
+          ? `The username "${username}" is already taken. Pick another.`
+          : 'Could not create the login: ' + err.message);
+        gen.disabled = false;
+      }
+    });
+
+    const regen = wrap.querySelector('.cred-regen');
+    if (regen) regen.addEventListener('click', async () => {
+      hideCredErr();
+      regen.disabled = true;
+      try {
+        const data = await apiJson(`/api/admin/departments/${d.id}/credentials`, {
+          method: 'POST', body: {}
+        });
+        showCredModal(d.name, data.username, data.password);
+        loadDepartments();
+      } catch (err) {
+        showCredErr('Could not regenerate the password: ' + err.message);
+        regen.disabled = false;
+      }
+    });
+
+    const revoke = wrap.querySelector('.cred-revoke');
+    if (revoke) revoke.addEventListener('click', async () => {
+      hideCredErr();
+      if (!confirm(`Revoke the portal login for "${d.name}"? The HOD is signed out immediately and can no longer submit.`)) return;
+      revoke.disabled = true;
+      try {
+        await apiJson(`/api/admin/departments/${d.id}/credentials`, { method: 'DELETE' });
+        toast(`Login revoked for ${cap(d.name)}`);
+        loadDepartments();
+      } catch (err) {
+        showCredErr('Could not revoke the login: ' + err.message);
+        revoke.disabled = false;
+      }
+    });
+  }
+
+  // One-time password modal. Only the Done button closes it: the password
+  // cannot be recovered after dismissal, so no accidental click-away.
+  function showCredModal(deptName, username, password) {
+    $('cred-modal-dept').textContent = `${cap(deptName)} · save these before closing`;
+    $('cred-modal-user').textContent = username;
+    $('cred-modal-pass').textContent = password;
+    $('cred-modal').hidden = false;
+    $('cred-copy').focus();
+  }
+
+  async function copyCredentials() {
+    const text = `Username: ${$('cred-modal-user').textContent}\nPassword: ${$('cred-modal-pass').textContent}\nPortal: ${location.origin}/`;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('Credentials copied to the clipboard');
+    } catch {
+      toast('Copy failed. Select the text manually.', { err: true });
+    }
   }
 
   // ══════════════════════════════════════════════════════════
@@ -1601,6 +1829,8 @@
     const dc = state.settings.delivery_config || {};
     $('dl-sender').value = dc.sender_name || '';
     $('dl-auto').checked = !!dc.auto_email;
+    $('dl-model').value = dc.ai_model || 'claude-opus-5';
+    if ($('dl-model').selectedIndex === -1) $('dl-model').value = 'claude-opus-5'; // unknown stored id
     $('dl-anthropic').value = dc.anthropic_api_key || '';
     $('dl-archive').value = dc.archive_path || '';
   }
@@ -1642,6 +1872,7 @@
       ...prev,
       sender_name: $('dl-sender').value.trim(),
       auto_email: $('dl-auto').checked,
+      ai_model: $('dl-model').value || 'claude-opus-5',
       anthropic_api_key: $('dl-anthropic').value.trim(),
       archive_path: $('dl-archive').value.trim()
     };
@@ -1822,8 +2053,21 @@
       if (open) loadLogs();
     });
 
+    // Overview: submission drawer (close button, click outside, Esc)
+    $('drawer-close').addEventListener('click', closeDrawer);
+    $('drawer-overlay').addEventListener('click', e => {
+      if (e.target === $('drawer-overlay')) closeDrawer();
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeDrawer();
+    });
+
     // Departments
     $('dept-add-btn').addEventListener('click', addDepartment);
+
+    // Credentials modal
+    $('cred-copy').addEventListener('click', copyCredentials);
+    $('cred-modal-close').addEventListener('click', () => { $('cred-modal').hidden = true; });
 
     // Report
     $('report-save').addEventListener('click', saveReport);

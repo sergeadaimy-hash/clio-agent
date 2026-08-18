@@ -381,6 +381,15 @@
         <div class="panel-box panel-gap">
           <h4>AI Content Review</h4>
           <p class="panel-note panel-gap">Polishes HOD submissions for grammar, spelling, and writing style before they land in the deck. Leave empty to disable.</p>
+          <div class="field" style="max-width:420px;">
+            <label for="dl-model">AI model</label>
+            <select class="input" id="dl-model">
+              <option value="claude-opus-5">Opus 5, recommended</option>
+              <option value="claude-sonnet-5">Sonnet 5</option>
+              <option value="claude-haiku-4-5">Haiku 4.5, cheapest</option>
+            </select>
+            <p class="hint">Used for text polishing and the WhatsApp agent.</p>
+          </div>
           <div class="field" style="max-width:420px;margin-bottom:4px;">
             <label for="dl-anthropic">Anthropic API key</label>
             <div class="reveal-wrap">
@@ -480,6 +489,33 @@
       </section>
 
     </main>
+  </div>
+
+  <!-- Overview: submission detail drawer -->
+  <div class="drawer-overlay" id="drawer-overlay" hidden>
+    <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+      <div class="drawer-head">
+        <span class="swatch-dot" id="drawer-dot"></span>
+        <h3 id="drawer-title"></h3>
+        <button type="button" class="drawer-close" id="drawer-close" aria-label="Close details">&times;</button>
+      </div>
+      <div class="drawer-body" id="drawer-body"></div>
+    </aside>
+  </div>
+
+  <!-- Departments: one-time portal credentials -->
+  <div class="modal-overlay" id="cred-modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="cred-modal-title">
+      <h3 id="cred-modal-title">Portal login ready</h3>
+      <p class="modal-sub" id="cred-modal-dept"></p>
+      <div class="cred-line"><span class="cl">Username</span><span class="cred-big" id="cred-modal-user"></span></div>
+      <div class="cred-line"><span class="cl">Password</span><span class="cred-big" id="cred-modal-pass"></span></div>
+      <div class="cred-warn">Shown once. Save it now.</div>
+      <div class="modal-actions">
+        <button type="button" class="btn-sm solid" id="cred-copy">Copy</button>
+        <button type="button" class="btn-sm" id="cred-modal-close">Done</button>
+      </div>
+    </div>
   </div>
 
   <div class="toast-stack" id="toast-stack"></div>

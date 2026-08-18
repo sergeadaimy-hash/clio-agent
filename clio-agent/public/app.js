@@ -1,30 +1,34 @@
-// CLIO operator portal: vanilla JS, mobile-first, three-step guided flow.
-// Screens: select -> (readonly | form steps 1..3) -> success.
+// CLIO operator portal: vanilla JS, mobile-first, HOD account sessions.
+// Screens: login -> (readonly | form steps 1..3) -> success.
+// The HOD signs in with per-department credentials and lands directly on
+// their own department. Other departments show as a read-only team panel.
 (() => {
   'use strict';
 
   // ── State ───────────────────────────────────────────────
+  const AUTH_KEY = 'clio_portal_auth';
+
   const state = {
+    auth: null,           // { token, department: { id, name } } from login
     date: null,
     reportTime: '23:00',
     eventName: '',
     edition: '',
     brand: null,
     departments: [],
-    dept: null,           // department currently open
+    dept: null,           // the HOD's own department row from /api/status
     existing: null,       // existing submission row when editing, else null
     step: 1,
     progress: 0,
     photos: [],           // new File objects pending upload
     captions: {},         // new-photo captions keyed by file.name (pipeline keying, do not change)
     existingPhotos: [],   // [{ base, capKey, caption }] photos already on the server
-    cameFrom: 'screen-select',
     submitting: false
   };
 
   // ── DOM utils ───────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
-  const screens = ['screen-select', 'screen-readonly', 'screen-form', 'screen-success'];
+  const screens = ['screen-login', 'screen-readonly', 'screen-form', 'screen-success'];
 
   function show(id) {
     screens.forEach(s => $(s).classList.toggle('active', s === id));
@@ -57,6 +61,35 @@
     if (!stamp) return '';
     const m = String(stamp).match(/(\d{2}):(\d{2})/);
     return m ? `${m[1]}:${m[2]}` : '';
+  }
+
+  // ── Session storage ─────────────────────────────────────
+  function loadAuth() {
+    try {
+      const a = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null');
+      return (a && a.token && a.department && a.department.id) ? a : null;
+    } catch { return null; }
+  }
+  function saveAuth(a) { try { localStorage.setItem(AUTH_KEY, JSON.stringify(a)); } catch {} }
+  function clearAuth() { try { localStorage.removeItem(AUTH_KEY); } catch {} }
+
+  // Authenticated fetch: sends the portal token and treats any 401 as an
+  // expired session (clears storage, returns to login). Callers catch.
+  async function authFetch(path, opts = {}) {
+    const headers = { ...(opts.headers || {}) };
+    if (state.auth) headers['x-portal-token'] = state.auth.token;
+    const res = await fetch(path, { ...opts, headers });
+    if (res.status === 401) {
+      sessionExpired();
+      throw new Error('session expired');
+    }
+    return res;
+  }
+
+  function sessionExpired() {
+    clearAuth();
+    state.auth = null;
+    showLogin('Your session expired. Sign in again.');
   }
 
   // ── Drafts (localStorage, per department per date) ──────
@@ -98,11 +131,9 @@
   }
 
   async function fetchSubmission(deptId) {
-    try {
-      const res = await fetch(`/api/submission/${deptId}`);
-      if (!res.ok) return null;
-      return res.json();
-    } catch { return null; }
+    const res = await authFetch(`/api/submission/${deptId}`);
+    if (!res.ok) return null;
+    return res.json();
   }
 
   // ── Brand injection ─────────────────────────────────────
@@ -152,12 +183,15 @@
     const rgb2 = hexToRgb(b.label_color);
     if (rgb2) root.setProperty('--accent-2-soft', `rgba(${rgb2[0]},${rgb2[1]},${rgb2[2]},0.14)`);
 
-    // Logo in the header when present, event name text otherwise.
+    // Logo in the rail and on the login card when present.
     if (data.logo_url) {
       $('brand-logo').src = data.logo_url;
       $('portal-logo').hidden = false;
+      $('login-logo-img').src = data.logo_url;
+      $('login-logo').hidden = false;
     } else {
       $('portal-logo').hidden = true;
+      $('login-logo').hidden = true;
     }
     // Company name in the footer when present.
     const foot = $('portal-foot');
@@ -192,11 +226,11 @@
     pill.hidden = false;
   }
 
-  // ── Screen 1: select ────────────────────────────────────
+  // ── Status refresh: brand, pills, team panel ────────────
   async function refreshStatus() {
     try {
       const data = await fetchStatus();
-      hideSelectError();
+      hidePortalError();
       state.date = data.date;
       state.reportTime = data.report_time || '23:00';
       state.eventName = data.event_name || '';
@@ -207,40 +241,69 @@
       applyBrand(data);
 
       $('ev-name').textContent = state.eventName || 'Daily Report';
+      $('login-ev-name').textContent = state.eventName || 'Daily Report';
       $('pill-date').textContent = shortDate(state.date) + (state.edition ? ` · ${state.edition.toUpperCase()}` : '');
       renderDeadline();
 
-      const done = state.departments.filter(d => d.submitted).length;
-      $('team-line').innerHTML = `<b>${done} OF ${state.departments.length}</b> SUBMITTED TONIGHT`;
-
-      renderDeptList(state.departments);
+      // Keep the HOD's department row fresh (submitted flag, color)
+      if (state.auth) {
+        const mine = findMyDept();
+        if (mine) state.dept = mine;
+        renderRail();
+      }
+      renderTeamStatus();
+      return true;
     } catch (err) {
       console.error('refreshStatus failed:', err);
-      showSelectError('Could not load event data. Check your connection and retry.');
+      showPortalError('Could not load event data. Check your connection and retry.');
+      return false;
     }
   }
 
-  function makeDeptCard(d, opts) {
-    const card = document.createElement('button');
-    card.type = 'button';
-    card.className = 'dept-card' + ((opts && opts.indent) ? ' dept-card-child' : '');
-    card.innerHTML = `
+  function findMyDept() {
+    if (!state.auth) return null;
+    return state.departments.find(d => d.id === state.auth.department.id) || null;
+  }
+
+  // ── UI mode: logged in vs logged out ────────────────────
+  function setAuthedUI(authed) {
+    $('app').classList.toggle('authed', authed);
+    $('side-rail').hidden = !authed;
+  }
+
+  function renderRail() {
+    if (!state.auth) return;
+    const dept = state.dept || {};
+    $('rail-dept-dot').style.background = dept.stream_color || 'var(--accent)';
+    $('rail-dept-name').textContent = dept.name || state.auth.department.name || '';
+  }
+
+  // ── Team status panel (read-only) ───────────────────────
+  function teamRow(d, opts) {
+    const row = document.createElement('div');
+    row.className = 'team-row'
+      + ((opts && opts.indent) ? ' team-row-child' : '')
+      + ((state.auth && d.id === state.auth.department.id) ? ' me' : '');
+    row.innerHTML = `
       <span class="dot" style="background:${escapeHtml(d.stream_color || '#3B82F6')}"></span>
-      <span class="dn">${escapeHtml(d.name)}</span>
+      <span class="tn">${escapeHtml(d.name)}</span>
       <span class="st ${d.submitted ? 'ok' : 'pending'}">${d.submitted ? `${escapeHtml(timeOnly(d.submitted_at))} ✓` : 'PENDING'}</span>
     `;
-    card.addEventListener('click', () => openDepartment(d));
-    return card;
+    return row;
   }
 
   // Groups: parentless departments render in id order; a parent with
   // children renders as a small header row (name + stream dot) followed by
-  // its children, indented. The parent itself only gets a card alongside the
+  // its children, indented. The parent itself only gets a row alongside the
   // header when it has its own progress (submitted or overall_progress > 0):
   // otherwise the header alone stands in for it, to avoid clutter.
-  function renderDeptList(departments) {
-    const list = $('dept-list');
+  function renderTeamStatus() {
+    const list = $('team-list');
     list.innerHTML = '';
+    const departments = state.departments || [];
+    const done = departments.filter(d => d.submitted).length;
+    $('team-count').textContent = departments.length ? `${done}/${departments.length}` : '';
+
     const ids = new Set(departments.map(d => d.id));
     // Orphaned parent_id (target missing) falls back to top-level rendering.
     const parents = departments.filter(d => !d.parent_id || !ids.has(d.parent_id));
@@ -249,7 +312,7 @@
     parents.forEach(p => {
       const kids = childrenOf(p.id);
       if (!kids.length) {
-        list.appendChild(makeDeptCard(p));
+        list.appendChild(teamRow(p));
         return;
       }
       const header = document.createElement('div');
@@ -261,37 +324,113 @@
       list.appendChild(header);
 
       if (p.submitted || (p.overall_progress || 0) > 0) {
-        list.appendChild(makeDeptCard(p, { indent: true }));
+        list.appendChild(teamRow(p, { indent: true }));
       }
-      kids.forEach(k => list.appendChild(makeDeptCard(k, { indent: true })));
+      kids.forEach(k => list.appendChild(teamRow(k, { indent: true })));
     });
   }
 
-  function showSelectError(msg) {
-    const el = $('select-error');
-    $('select-error-text').textContent = msg;
-    el.classList.add('show');
+  // ── Portal-level error banner ───────────────────────────
+  function showPortalError(msg) {
+    $('portal-error-text').textContent = msg;
+    $('portal-error').classList.add('show');
   }
-  function hideSelectError() {
-    $('select-error').classList.remove('show');
+  function hidePortalError() {
+    $('portal-error').classList.remove('show');
   }
 
-  async function openDepartment(dept) {
+  // ── Login ───────────────────────────────────────────────
+  function showLogin(msg) {
+    setAuthedUI(false);
+    $('login-pass').value = '';
+    setLoginError(msg || '');
+    show('screen-login');
+  }
+
+  function setLoginError(msg) {
+    const el = $('login-error');
+    el.textContent = msg;
+    el.classList.toggle('show', !!msg);
+  }
+
+  async function doLogin() {
+    const username = $('login-user').value.trim();
+    const password = $('login-pass').value;
+    if (!username || !password) {
+      setLoginError('Enter your username and password.');
+      return;
+    }
+    const btn = $('login-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Signing in…';
+    try {
+      const res = await fetch('/api/portal/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      if (res.status === 401) { setLoginError('Wrong username or password.'); return; }
+      if (res.status === 429) { setLoginError('Too many attempts. Wait a minute, then try again.'); return; }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      state.auth = { token: data.token, department: data.department };
+      saveAuth(state.auth);
+      setLoginError('');
+      await enterPortal();
+    } catch (err) {
+      setLoginError('Sign-in failed. Check your connection and try again.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Sign in';
+    }
+  }
+
+  function doLogout(msg) {
+    clearAuth();
+    state.auth = null;
+    state.dept = null;
+    state.existing = null;
+    showLogin(msg || '');
+  }
+
+  // ── Post-login landing ──────────────────────────────────
+  async function enterPortal() {
+    setAuthedUI(true);
+    renderRail();
+    renderTeamStatus();
+    await openMyDepartment();
+  }
+
+  async function openMyDepartment() {
+    hidePortalError();
+    if (!state.auth) return;
+    let dept = findMyDept();
+    if (!dept) {
+      if (!state.departments.length) {
+        // Status never loaded: show the shell and surface a retriable error.
+        show('screen-form');
+        showPortalError('Could not load event data. Check your connection and retry.');
+        return;
+      }
+      doLogout('Your account is no longer active. Ask your event admin for new credentials.');
+      return;
+    }
     state.dept = dept;
-    hideSelectError();
+    renderRail();
     if (dept.submitted) {
-      const sub = await fetchSubmission(dept.id);
+      let sub = null;
+      try { sub = await fetchSubmission(dept.id); } catch { return; }
       if (sub) return renderReadonly(dept, sub);
       // Fetch failed: do not fall through to a blank form, which would let
       // submitting overwrite the department's stored text with empty fields.
-      // Stay on the select screen and surface a dismissible inline error.
-      showSelectError('Could not load your submission. Check your connection and try again.');
+      show('screen-readonly');
+      showPortalError('Could not load your submission. Check your connection and try again.');
       return;
     }
-    enterForm(dept, null, 'screen-select');
+    enterForm(dept, null);
   }
 
-  // ── Screen 2: read-only summary ─────────────────────────
+  // ── Read-only summary ───────────────────────────────────
   function renderReadonly(dept, sub) {
     state.dept = dept;
     state.existing = sub;
@@ -338,7 +477,7 @@
       </div>`;
     }).join('');
 
-    $('ro-edit-btn').onclick = () => enterForm(dept, sub, 'screen-readonly');
+    $('ro-edit-btn').onclick = () => enterForm(dept, sub);
     show('screen-readonly');
   }
 
@@ -364,13 +503,12 @@
     return base; // no existing caption: key by full basename, which still matches "key in base"
   }
 
-  // ── Screen 3: form ──────────────────────────────────────
+  // ── Form ────────────────────────────────────────────────
   const STEP_NAMES = { 1: 'Progress', 2: 'Notes', 3: 'Photos' };
 
-  function enterForm(dept, existing, cameFrom) {
+  function enterForm(dept, existing) {
     state.dept = dept;
     state.existing = existing || null;
-    state.cameFrom = cameFrom || 'screen-select';
     state.step = 1;
     state.photos = [];
     state.captions = {};
@@ -434,9 +572,10 @@
     });
     $('form-title').textContent = `${state.dept.name} · ${STEP_NAMES[n]}`;
     $('form-sub').textContent = `Step ${n} of 3 · ${STEP_NAMES[n]}`;
-    $('form-back-label').textContent = n === 1
-      ? (state.cameFrom === 'screen-readonly' ? 'Summary' : 'Departments')
-      : STEP_NAMES[n - 1];
+    // On step 1 there is only somewhere to go back to when a submission
+    // already exists (its read-only summary). A first-time form starts here.
+    $('form-back').hidden = (n === 1 && !state.existing);
+    $('form-back-label').textContent = n === 1 ? 'Summary' : STEP_NAMES[n - 1];
     const btn = $('btn-continue');
     btn.disabled = false;
     btn.textContent = n === 1 ? 'Continue to Notes →'
@@ -450,9 +589,9 @@
       state.step -= 1;
       renderStep();
       window.scrollTo(0, 0);
-    } else {
-      show(state.cameFrom === 'screen-readonly' ? 'screen-readonly' : 'screen-select');
-      if (state.cameFrom !== 'screen-readonly') refreshStatus();
+    } else if (state.existing) {
+      // Re-fetch and land on the read-only summary
+      openMyDepartment();
     }
   }
 
@@ -622,7 +761,7 @@
     if (!text || text === el.dataset.reviewed) return;
     el.dataset.reviewed = text; // mark first so rapid blur cycles do not re-fire
     try {
-      const res = await fetch('/api/review-text', {
+      const res = await authFetch('/api/review-text', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, field_type: fieldType })
@@ -665,6 +804,8 @@
       if (state.captions[f.name]) captionMap[f.name] = state.captions[f.name];
     });
 
+    // The server derives the department from the portal token; the field
+    // stays for admin-password test submissions only.
     const fd = new FormData();
     fd.append('department_id', state.dept.id);
     fd.append('overall_progress', state.progress);
@@ -681,7 +822,7 @@
     btn.innerHTML = '<span class="spinner"></span>Uploading…';
 
     try {
-      const res = await fetch('/api/submit', { method: 'POST', body: fd });
+      const res = await authFetch('/api/submit', { method: 'POST', body: fd });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'submission failed');
 
@@ -689,8 +830,9 @@
       renderSuccess();
       refreshStatus();
     } catch (err) {
-      showError(`Submission failed: ${err.message}. Your draft is saved on this device.`);
       state.submitting = false;
+      if (!state.auth) return; // session expired mid-upload; login is showing
+      showError(`Submission failed: ${err.message}. Your draft is saved on this device.`);
       renderStep();
     }
   }
@@ -707,20 +849,39 @@
   }
 
   async function editAgain() {
-    const sub = await fetchSubmission(state.dept.id);
-    enterForm(state.dept, sub, 'screen-select');
+    let sub = null;
+    try { sub = await fetchSubmission(state.dept.id); } catch { return; }
+    enterForm(state.dept, sub);
   }
 
   // ── Init ────────────────────────────────────────────────
   function init() {
-    // Dismiss also retries: whether the error came from a failed submission
-    // fetch or a failed boot-time status fetch, re-checking is always safe.
-    $('select-error-dismiss').addEventListener('click', () => { hideSelectError(); refreshStatus(); });
-    $('ro-back').addEventListener('click', () => { show('screen-select'); refreshStatus(); });
+    state.auth = loadAuth();
+
+    // Dismiss also retries: re-checking status (and re-landing when signed
+    // in) is always safe.
+    $('portal-error-dismiss').addEventListener('click', async () => {
+      hidePortalError();
+      const ok = await refreshStatus();
+      // Re-land automatically unless the HOD is mid-form (protect typing).
+      if (ok && state.auth && activeScreen() !== 'screen-form') openMyDepartment();
+    });
+
+    $('login-btn').addEventListener('click', doLogin);
+    ['login-user', 'login-pass'].forEach(id => {
+      $(id).addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+    });
+    $('logout-btn').addEventListener('click', () => doLogout());
+
+    $('team-toggle').addEventListener('click', () => {
+      const open = $('team-panel').classList.toggle('open');
+      $('team-toggle').setAttribute('aria-expanded', String(open));
+    });
+
     $('form-back').addEventListener('click', goBack);
     $('btn-continue').addEventListener('click', goForward);
     $('btn-edit-again').addEventListener('click', editAgain);
-    $('btn-done').addEventListener('click', () => { show('screen-select'); refreshStatus(); });
+    $('btn-done').addEventListener('click', () => openMyDepartment());
 
     $('progress-range').addEventListener('input', (e) => {
       setProgressUI(e.target.value);
@@ -742,11 +903,22 @@
       e.target.value = '';
     });
 
-    refreshStatus();
-    // Keep the select screen and countdown fresh without stomping the form
+    // Boot: public status first (brand + team), then land or ask to sign in.
+    (async () => {
+      await refreshStatus();
+      if (state.auth) {
+        // Stored session: land directly; any 401 clears it and returns here.
+        await enterPortal();
+      } else {
+        showLogin();
+      }
+    })();
+
+    // Keep the team panel and countdown fresh without stomping the form:
+    // refreshStatus only touches the rail, pills, and team list.
     setInterval(() => {
-      if (activeScreen() === 'screen-select') refreshStatus();
-      else renderDeadline();
+      if (state.submitting) return;
+      refreshStatus();
     }, 60000);
     setInterval(renderDeadline, 30000);
   }

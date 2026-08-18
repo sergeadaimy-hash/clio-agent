@@ -1,0 +1,78 @@
+// render-preview.js: rasterize a PPTX to per-slide PNGs via LibreOffice + poppler.
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { execFile, execFileSync } = require('child_process');
+const { promisify } = require('util');
+
+const execFileP = promisify(execFile);
+
+const SOFFICE_APP_PATH = '/Applications/LibreOffice.app/Contents/MacOS/soffice';
+const PDFTOPPM_FALLBACKS = ['/opt/homebrew/bin/pdftoppm', '/usr/local/bin/pdftoppm'];
+
+// ── Binary discovery ────────────────────────────────────────
+function findSoffice() {
+  try {
+    const out = execFileSync('which', ['soffice'], { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString().trim();
+    if (out) return out;
+  } catch { /* not on PATH */ }
+  if (fs.existsSync(SOFFICE_APP_PATH)) return SOFFICE_APP_PATH;
+  return null;
+}
+
+function findPdftoppm() {
+  try {
+    const out = execFileSync('which', ['pdftoppm'], { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString().trim();
+    if (out) return out;
+  } catch { /* not on PATH */ }
+  for (const p of PDFTOPPM_FALLBACKS) {
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
+// ── Render ──────────────────────────────────────────────────
+// Converts pptxPath to PDF via headless LibreOffice, then rasterizes each
+// page to <outDir>/slide-NN.png at 96 dpi. Returns sorted absolute PNG paths.
+// Throws { code: 'SOFFICE_UNAVAILABLE' } when the toolchain is missing.
+async function renderDeckToImages(pptxPath, outDir) {
+  const soffice = findSoffice();
+  const pdftoppm = findPdftoppm();
+  if (!soffice || !pdftoppm) {
+    const err = new Error('rendering toolchain not installed (needs LibreOffice + poppler)');
+    err.code = 'SOFFICE_UNAVAILABLE';
+    throw err;
+  }
+  if (!fs.existsSync(pptxPath)) {
+    throw new Error(`deck not found: ${pptxPath}`);
+  }
+
+  fs.mkdirSync(outDir, { recursive: true });
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clio-render-'));
+  try {
+    await execFileP(
+      soffice,
+      ['--headless', '--convert-to', 'pdf', '--outdir', tmpDir, pptxPath],
+      { timeout: 120000 }
+    );
+    const pdfPath = path.join(tmpDir, path.basename(pptxPath).replace(/\.pptx$/i, '.pdf'));
+    if (!fs.existsSync(pdfPath)) {
+      throw new Error('LibreOffice produced no PDF output');
+    }
+    await execFileP(
+      pdftoppm,
+      ['-png', '-r', '96', pdfPath, path.join(outDir, 'slide')],
+      { timeout: 120000 }
+    );
+    return fs.readdirSync(outDir)
+      .filter(f => /^slide.*\.png$/.test(f))
+      .sort()
+      .map(f => path.join(outDir, f));
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
+module.exports = { findSoffice, findPdftoppm, renderDeckToImages };

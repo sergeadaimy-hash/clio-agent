@@ -4,6 +4,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const { spawn } = require('child_process');
 const Database = require('better-sqlite3');
 const multer = require('multer');
@@ -12,6 +13,7 @@ const cron = require('node-cron');
 const { DateTime } = require('luxon');
 
 const notifications = require('./notifications');
+const renderPreview = require('./render-preview');
 
 // ── Paths ───────────────────────────────────────────────────
 const ROOT = __dirname;
@@ -144,6 +146,13 @@ function getDeliveryConfig() {
 function getBrandConfig() {
   try {
     const raw = getSetting('brand_config');
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return {};
+}
+function getReportConfig() {
+  try {
+    const raw = getSetting('report_config');
     if (raw) return JSON.parse(raw);
   } catch {}
   return {};
@@ -606,6 +615,161 @@ app.post('/api/admin/brand-logo', requireAdmin, upload.single('logo'), async (re
 
 // Serve brand assets
 app.use('/uploads/brand', express.static(BRAND_DIR));
+
+// ── Admin: Report Template & Preview ────────────────────────
+const REPORT_TEMPLATE_PATH = path.join(BRAND_DIR, 'report_template.pptx');
+
+app.post('/api/admin/report-template', requireAdmin, upload.single('template'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'no file uploaded' });
+    const name = req.file.originalname || '';
+    if (!/\.pptx$/i.test(name)) return res.status(400).json({ error: 'file must be a .pptx' });
+    const buf = req.file.buffer;
+    // PPTX files are ZIP archives: magic bytes PK\x03\x04
+    if (!buf || buf.length < 4 || buf[0] !== 0x50 || buf[1] !== 0x4B || buf[2] !== 0x03 || buf[3] !== 0x04) {
+      return res.status(400).json({ error: 'not a valid PowerPoint file' });
+    }
+    fs.writeFileSync(REPORT_TEMPLATE_PATH, buf);
+    const cfg = getReportConfig();
+    cfg.template_path = REPORT_TEMPLATE_PATH;
+    cfg.template_filename = name;
+    cfg.template_uploaded_at = nowStamp();
+    setSetting('report_config', JSON.stringify(cfg));
+    logAction(null, today(), 'report_template_uploaded');
+    res.json({ success: true, filename: name, size: buf.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/report-template', requireAdmin, (req, res) => {
+  try {
+    if (fs.existsSync(REPORT_TEMPLATE_PATH)) fs.unlinkSync(REPORT_TEMPLATE_PATH);
+    const cfg = getReportConfig();
+    delete cfg.template_path;
+    delete cfg.template_filename;
+    delete cfg.template_uploaded_at;
+    cfg.template_mode = 'tokens';
+    setSetting('report_config', JSON.stringify(cfg));
+    logAction(null, today(), 'report_template_removed');
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Everything the live (HTML/CSS) preview needs to draw itself with real data.
+app.get('/api/admin/report-preview-data', requireAdmin, (req, res) => {
+  try {
+    const { logo_path, ...brand } = getBrandConfig();
+    brand.logo_url = getLogoUrl();
+    const departments = db.prepare(
+      'SELECT id, name, stream_color, parent_id FROM departments ORDER BY id'
+    ).all();
+    const latestRow = db.prepare(
+      'SELECT MAX(submission_date) AS d FROM daily_submissions WHERE is_submitted = 1'
+    ).get();
+    const date = (latestRow && latestRow.d) || today();
+    const rows = db.prepare(
+      'SELECT * FROM daily_submissions WHERE submission_date = ? AND is_submitted = 1'
+    ).all(date);
+    const submissions = rows.map(r => {
+      let photos = [];
+      try { photos = JSON.parse(r.photos || '[]'); } catch {}
+      let captions = {};
+      try { captions = JSON.parse(r.photo_captions || '{}'); } catch {}
+      return {
+        department_id: r.department_id,
+        overall_progress: r.overall_progress || 0,
+        status_text: r.polished_status_text || r.status_text || '',
+        highlights: r.polished_highlights || r.highlights || '',
+        blockers: r.polished_blockers || r.blockers || '',
+        photo_count: photos.length,
+        captions: Object.values(captions).filter(Boolean).slice(0, 4)
+      };
+    });
+    res.json({
+      brand,
+      event_name: getEventName(),
+      event_edition: getEventEdition(),
+      report_config: getReportConfig(),
+      departments,
+      latest: { date, submissions }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// True preview: generate the deck for a date and rasterize it to PNGs.
+// Results cached per date + config hash; concurrent renders serialized.
+const inFlightRenders = new Map();
+
+app.post('/api/admin/report-preview-render', requireAdmin, async (req, res) => {
+  const date = req.body && req.body.date;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) {
+    return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
+  }
+  try {
+    const reportConfig = getReportConfig();
+    let templateStamp = '0';
+    if (reportConfig.template_path) {
+      try { templateStamp = String(fs.statSync(reportConfig.template_path).mtimeMs); } catch {}
+    }
+    const confighash = crypto.createHash('sha1')
+      .update(JSON.stringify(reportConfig) + templateStamp)
+      .digest('hex');
+    const dir = path.join(REPORTS_DIR, date, 'preview', confighash);
+    const listPngs = () => (
+      fs.existsSync(dir)
+        ? fs.readdirSync(dir).filter(f => f.endsWith('.png')).sort()
+        : []
+    );
+
+    let pngs = listPngs();
+    if (!pngs.length) {
+      const key = `${date}:${confighash}`;
+      let job = inFlightRenders.get(key);
+      if (!job) {
+        job = (async () => {
+          const { report_path } = await runGenerateReport(date);
+          await renderPreview.renderDeckToImages(report_path, dir);
+        })().finally(() => inFlightRenders.delete(key));
+        inFlightRenders.set(key, job);
+      }
+      await job;
+      pngs = listPngs();
+    }
+
+    const images = pngs.map(f => {
+      const rel = path.relative(REPORTS_DIR, path.join(dir, f));
+      return `/api/admin/report-preview-image?f=${encodeURIComponent(rel)}`;
+    });
+    res.json({ available: true, date, images });
+  } catch (err) {
+    if (err.code === 'SOFFICE_UNAVAILABLE') {
+      return res.json({ available: false, reason: 'renderer not installed' });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Preview slide image. <img> tags cannot send headers, so this endpoint also
+// accepts ?password= (requireAdmin already reads the query), like the archive
+// photo exception.
+app.get('/api/admin/report-preview-image', requireAdmin, (req, res) => {
+  try {
+    const f = String(req.query.f || '');
+    const p = path.normalize(path.join(REPORTS_DIR, f));
+    if (!p.startsWith(REPORTS_DIR + path.sep) || !p.endsWith('.png')) {
+      return res.status(400).json({ error: 'bad path' });
+    }
+    if (!fs.existsSync(p)) return res.status(404).json({ error: 'not found' });
+    res.sendFile(p);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ── Admin: Department CRUD ──────────────────────────────────
 app.get('/api/admin/departments', requireAdmin, (req, res) => {

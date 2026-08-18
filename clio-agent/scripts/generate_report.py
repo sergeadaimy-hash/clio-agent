@@ -22,6 +22,7 @@ from pptx.util import Inches, Pt, Emu
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import PP_ALIGN
+from pptx.oxml.ns import qn
 
 # ── Paths ───────────────────────────────────────────────────
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -81,6 +82,9 @@ class Colors:
         self.bg_hex = brand.get('background_color', '#0F172A')
         self.accent_hex = brand.get('primary_color', '#3B82F6')
         self.panel_hex = brand.get('panel_color', '#1E293B')
+        # True when an imported template supplies the deck: slides then keep
+        # the template's own master background instead of a painted rect.
+        self.template_bg = False
 
 
 # ── DB ──────────────────────────────────────────────────────
@@ -113,10 +117,57 @@ def fetch_data(date):
 
 
 # ── Slide helpers ───────────────────────────────────────────
+def delete_all_slides(prs):
+    """Strip every slide but keep masters, layouts, and theme."""
+    xml_slides = prs.slides._sldIdLst
+    for sld in list(xml_slides):
+        rId = sld.get(qn('r:id'))
+        prs.part.drop_rel(rId)
+        xml_slides.remove(sld)
+
+
+def theme_accent_hex(prs):
+    """Read accent1 from the presentation theme. Returns '#RRGGBB' or None."""
+    try:
+        from pptx.opc.constants import RELATIONSHIP_TYPE as RT
+        from lxml import etree
+        theme_part = prs.slide_masters[0].part.part_related_by(RT.THEME)
+        root = etree.fromstring(theme_part.blob)
+        ns = {"a": "http://schemas.openxmlformats.org/drawingml/2006/main"}
+        node = root.find(".//a:clrScheme/a:accent1", ns)
+        if node is None:
+            return None
+        srgb = node.find("a:srgbClr", ns)
+        if srgb is not None and srgb.get("val"):
+            return "#" + srgb.get("val")
+        sysclr = node.find("a:sysClr", ns)
+        if sysclr is not None and sysclr.get("lastClr"):
+            return "#" + sysclr.get("lastClr")
+    except Exception as e:
+        sys.stderr.write(f"theme accent read failed: {e}\n")
+    return None
+
+
 def new_presentation(report):
+    """Build the base Presentation. Returns (prs, template_active).
+
+    Priority: admin-imported template (template_mode 'template'), then the
+    legacy templates/base_template.pptx for tokens mode, then a blank deck.
+    An imported template keeps its own slide dimensions; its slides are
+    removed so the generator starts clean on its masters and theme.
+    """
+    mode = report.get('template_mode', 'tokens')
+    config_tpl = report.get('template_path') or ''
+    if mode == 'template' and config_tpl and os.path.exists(config_tpl):
+        try:
+            prs = Presentation(config_tpl)
+            delete_all_slides(prs)
+            return prs, True
+        except Exception as e:
+            sys.stderr.write(f"config template load failed, falling back to tokens: {e}\n")
     if os.path.exists(TEMPLATE_PATH):
         try:
-            return Presentation(TEMPLATE_PATH)
+            return Presentation(TEMPLATE_PATH), False
         except Exception as e:
             sys.stderr.write(f"template load failed, using blank: {e}\n")
     prs = Presentation()
@@ -127,16 +178,17 @@ def new_presentation(report):
     else:
         prs.slide_width = Inches(13.333)
         prs.slide_height = Inches(7.5)
-    return prs
+    return prs, False
 
 
 def blank_slide(prs, C):
     layout = prs.slide_layouts[6] if len(prs.slide_layouts) > 6 else prs.slide_layouts[-1]
     slide = prs.slides.add_slide(layout)
-    bg = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, prs.slide_width, prs.slide_height)
-    bg.line.fill.background()
-    bg.fill.solid()
-    bg.fill.fore_color.rgb = C.BG
+    if not C.template_bg:
+        bg = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, prs.slide_width, prs.slide_height)
+        bg.line.fill.background()
+        bg.fill.solid()
+        bg.fill.fore_color.rgb = C.BG
     return slide
 
 
@@ -471,7 +523,8 @@ def slide_photo_wall(prs, dept, photos, page_idx, page_total, brand, C, report, 
 
 def slide_no_submission(prs, dept, C, font):
     slide = blank_slide(prs, C)
-    add_rect(slide, 0, 0, prs.slide_width, prs.slide_height, RGBColor(0x12, 0x14, 0x1A))
+    if not C.template_bg:
+        add_rect(slide, 0, 0, prs.slide_width, prs.slide_height, RGBColor(0x12, 0x14, 0x1A))
     add_text(slide, Inches(0.4), Inches(3.0), Inches(12.5), Inches(1.0),
              f"{dept['name']}: No Update Submitted",
              size=32, bold=True, color=C.MUTED, align=PP_ALIGN.CENTER, font_name=font)
@@ -488,7 +541,15 @@ def build(date):
     font = brand.get('font_family') or brand.get('font_name') or 'Calibri'
 
     departments, submissions = fetch_data(date)
-    prs = new_presentation(report)
+    prs, template_active = new_presentation(report)
+    C.template_bg = template_active
+
+    # Optional: inherit the template's theme accent instead of the brand token
+    if template_active and report.get('template_colors', False):
+        accent = theme_accent_hex(prs)
+        if accent:
+            C.ACCENT = hex_to_rgb(accent)
+            C.accent_hex = accent
 
     # Order sections parent-first, then its children, then the next parent:
     # sort key = (parent's id or own id, 0 if this row is a parent else 1, own id).

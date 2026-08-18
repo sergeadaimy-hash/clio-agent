@@ -15,7 +15,10 @@
     reportConfig: {},
     logsLoaded: false,
     overviewTimer: null,
-    departments: []           // last /api/admin/departments payload (Departments section)
+    departments: [],          // last /api/admin/departments payload (Departments section)
+    previewData: null,        // last /api/admin/report-preview-data payload
+    trueImages: [],           // rendered slide image URLs (True preview tab)
+    trueIdx: 0                // selected slide in the filmstrip
   };
 
   // ── DOM utils ─────────────────────────────────────────────
@@ -727,7 +730,14 @@
     try { await fetchSettings(); } catch (err) { toast('Failed to load settings: ' + err.message, { err: true }); return; }
     state.reportConfig = state.settings.report_config || {};
     $('report-dimensions').value = state.reportConfig.slide_dimensions || '16:9';
+    try { state.previewData = await apiJson('/api/admin/report-preview-data'); }
+    catch (err) { state.previewData = null; }
+    if (!$('rb-date').value) {
+      $('rb-date').value = (state.previewData && state.previewData.latest && state.previewData.latest.date) || state.today || '';
+    }
+    renderTemplateCard();
     renderSlides();
+    renderLivePreview();
   }
 
   function slideOrder() {
@@ -783,11 +793,14 @@
           [ord[i], ord[j]] = [ord[j], ord[i]];
           state.reportConfig.slide_order = ord;
           renderSlides();
+          previewRefresh();
         });
       });
       card.querySelector('.sc-enable').addEventListener('change', e => {
         card.classList.toggle('off', !e.target.checked);
       });
+      // Any option or toggle change redraws the live preview (change bubbles)
+      card.addEventListener('change', previewRefresh);
       list.appendChild(card);
     });
   }
@@ -796,6 +809,10 @@
     const cfg = { ...state.reportConfig };
     cfg.slide_dimensions = $('report-dimensions').value;
     cfg.slide_order = slideOrder();
+    // Template keys: mode lives in state (seg buttons), colors in the DOM.
+    // Unknown keys (template_path, template_filename, ...) ride along via the spread.
+    cfg.template_mode = cfg.template_path ? (state.reportConfig.template_mode || 'tokens') : 'tokens';
+    cfg.template_colors = !!($('tpl-colors') && $('tpl-colors').checked);
     document.querySelectorAll('.slide-card').forEach(card => {
       const key = card.dataset.key;
       const entry = { ...(cfg[key] || {}), enabled: card.querySelector('.sc-enable').checked };
@@ -817,6 +834,447 @@
       if (state.settings) state.settings.report_config = cfg;
       toast('Report settings saved');
     } catch (err) { toast('Save failed: ' + err.message, { err: true }); }
+  }
+
+  // Persist any pending report changes so True renders and test decks match
+  // what is on screen. No-op when nothing changed.
+  async function savePendingReportConfig() {
+    const cfg = syncReportConfigFromDom();
+    const stored = JSON.stringify((state.settings && state.settings.report_config) || {});
+    if (JSON.stringify(cfg) === stored) return;
+    await apiJson('/api/admin/settings', { method: 'PUT', body: { report_config: cfg } });
+    if (state.settings) state.settings.report_config = cfg;
+  }
+
+  // ── Template card ─────────────────────────────────────────
+  function renderTemplateCard() {
+    const cfg = state.reportConfig || {};
+    const box = $('tpl-state');
+    const hasTemplate = !!cfg.template_path;
+    if (hasTemplate) {
+      const name = cfg.template_filename || 'report_template.pptx';
+      const when = cfg.template_uploaded_at ? ` · imported ${cfg.template_uploaded_at.slice(0, 10)}` : '';
+      box.innerHTML = `
+        <div class="tpl-file-row">
+          <span class="tpl-icon">&#9639;</span>
+          <span class="tpl-name">${escapeHtml(name)}<small>${escapeHtml(when.replace(' · ', ''))}</small></span>
+          <span class="tpl-actions">
+            <button type="button" class="btn-sm" id="tpl-replace">Replace</button>
+            <button type="button" class="btn-sm danger" id="tpl-remove">Remove</button>
+          </span>
+        </div>`;
+      box.querySelector('#tpl-replace').addEventListener('click', () => $('tpl-file').click());
+      box.querySelector('#tpl-remove').addEventListener('click', removeTemplate);
+    } else {
+      box.innerHTML = `
+        <div class="tpl-file-row empty">
+          <span class="tpl-name muted">No template imported</span>
+          <span class="tpl-actions"><button type="button" class="btn-sm" id="tpl-import">Import .pptx</button></span>
+        </div>`;
+      box.querySelector('#tpl-import').addEventListener('click', () => $('tpl-file').click());
+    }
+
+    const mode = hasTemplate && cfg.template_mode === 'template' ? 'template' : 'tokens';
+    $('tpl-mode').querySelectorAll('button').forEach(b => {
+      b.classList.toggle('on', b.dataset.mode === mode);
+      if (b.dataset.mode === 'template') b.disabled = !hasTemplate;
+    });
+    $('tpl-colors-row').hidden = mode !== 'template';
+    $('tpl-colors').checked = !!cfg.template_colors;
+    $('report-dimensions').disabled = mode === 'template';
+    $('report-dimensions-hint').hidden = mode !== 'template';
+  }
+
+  async function uploadTemplate() {
+    const file = $('tpl-file').files[0];
+    if (!file) return;
+    if (!/\.pptx$/i.test(file.name)) {
+      toast('The template must be a .pptx file.', { err: true });
+      $('tpl-file').value = '';
+      return;
+    }
+    const fd = new FormData();
+    fd.append('template', file);
+    try {
+      const res = await api('/api/admin/report-template', { method: 'POST', body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'upload rejected');
+      toast(`Template imported: ${data.filename}`);
+      await fetchSettings();
+      state.reportConfig = { ...(state.settings.report_config || {}), template_mode: 'template' };
+      renderTemplateCard();
+      renderLivePreview();
+    } catch (err) { toast('Template import failed: ' + err.message, { err: true }); }
+    $('tpl-file').value = '';
+  }
+
+  async function removeTemplate() {
+    if (!confirm('Remove the imported template? The deck falls back to brand tokens.')) return;
+    try {
+      await apiJson('/api/admin/report-template', { method: 'DELETE' });
+      await fetchSettings();
+      state.reportConfig = state.settings.report_config || {};
+      toast('Template removed');
+      renderTemplateCard();
+      renderLivePreview();
+    } catch (err) { toast('Remove failed: ' + err.message, { err: true }); }
+  }
+
+  function setTemplateMode(mode) {
+    if (mode === 'template' && !state.reportConfig.template_path) return;
+    state.reportConfig.template_mode = mode;
+    renderTemplateCard();
+    renderLivePreview();
+  }
+
+  // ── Live preview (HTML/CSS approximation of the deck) ─────
+  let previewTimer = null;
+  function previewRefresh() {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(() => {
+      syncReportConfigFromDom();
+      renderLivePreview();
+    }, 80);
+  }
+
+  // Fixed semantic colors, mirrored from the generator
+  const PV_GREEN = '#4ADE80', PV_AMBER = '#FB923C', PV_RED = '#F87171';
+
+  function pvBadge(pct) {
+    if (pct >= 80) return { text: 'ON TRACK', color: PV_GREEN };
+    if (pct >= 50) return { text: 'IN PROGRESS', color: PV_AMBER };
+    return { text: 'AT RISK', color: PV_RED };
+  }
+
+  function pvSample() {
+    const data = state.previewData;
+    const depts = (data && data.departments) || [];
+    const subs = (data && data.latest && data.latest.submissions) || [];
+    let dept = null, sub = null;
+    for (const s of subs) {
+      const d = depts.find(x => x.id === s.department_id);
+      if (d) { dept = d; sub = s; break; }
+    }
+    if (!dept) dept = depts[0] || { name: 'DEPARTMENT', stream_color: '#3B82F6' };
+    if (!sub) {
+      sub = {
+        overall_progress: 65,
+        status_text: 'Main stage deck complete, LED wall rigged and tested. Crew moves to FOH calibration tomorrow morning.',
+        highlights: 'LED wall signed off ahead of schedule.',
+        blockers: 'Awaiting generator delivery for the north compound.',
+        photo_count: 4,
+        captions: []
+      };
+    }
+    return { dept, sub };
+  }
+
+  function renderLivePreview() {
+    const box = $('pv-boards');
+    if (!box) return;
+    const data = state.previewData;
+    if (!data) {
+      box.innerHTML = '<p class="panel-note">Preview data unavailable. Reload the section.</p>';
+      return;
+    }
+    const cfg = state.reportConfig || {};
+    const b = data.brand || {};
+    const vars = [
+      `--pv-bg:${b.background_color || '#0F172A'}`,
+      `--pv-panel:${b.panel_color || '#1E293B'}`,
+      `--pv-text:${b.text_color || '#E2E8F0'}`,
+      `--pv-muted:${b.muted_color || '#64748B'}`,
+      `--pv-accent:${b.primary_color || '#3B82F6'}`,
+      `--pv-font:"${(b.font_family || 'Sora').replace(/"/g, '')}", "Sora", sans-serif`,
+      `--pv-ratio:${cfg.slide_dimensions === '4:3' && cfg.template_mode !== 'template' ? '4 / 3' : '16 / 9'}`
+    ].join(';');
+
+    const order = slideOrder().filter(key => (cfg[key] || {}).enabled !== false);
+    const boards = order.map((key, i) => {
+      const type = SLIDE_TYPES.find(t => t.key === key);
+      let inner = '';
+      if (key === 'overview') inner = pvOverview(data, cfg);
+      else if (key === 'dept_overview') inner = pvDeptOverview(data, cfg);
+      else if (key === 'dept_schedule') inner = pvDeptSchedule(data, cfg);
+      else if (key === 'dept_photos') inner = pvDeptPhotos(data, cfg);
+      else if (key === 'no_submission') inner = pvNoSubmission(data);
+      return `
+        <div class="pv-slot">
+          <div class="pv-slot-label"><span>${String(i + 1).padStart(2, '0')}</span>${escapeHtml(type ? type.name : key)}</div>
+          <div class="pv-board" style="${vars}">${inner}</div>
+        </div>`;
+    }).join('');
+
+    const modeNote = cfg.template_mode === 'template'
+      ? '<p class="panel-note">Template mode: the live preview shows content and layout only. The imported design (masters, backgrounds, theme) appears in the true preview.</p>'
+      : '';
+    box.innerHTML = (boards || '<p class="panel-note">All slide types are off. Enable at least one.</p>') + modeNote;
+  }
+
+  function pvLogo(data) {
+    const url = data.brand && data.brand.logo_url;
+    return url ? `<img class="pv-logo" src="${escapeHtml(url)}" alt="" />` : '';
+  }
+
+  function pvOverview(data, cfg) {
+    const rcfg = cfg.overview || {};
+    const showBadges = rcfg.show_badges !== false;
+    const showAvg = rcfg.show_average !== false;
+    const subs = (data.latest && data.latest.submissions) || [];
+    const ids = new Set((data.departments || []).map(d => d.id));
+    // Same ordering as the generator: each parent, then its children
+    const sortKey = (d) => (d.parent_id != null && ids.has(d.parent_id))
+      ? [d.parent_id, 1, d.id] : [d.id, 0, d.id];
+    const depts = [...(data.departments || [])].sort((a, b) => {
+      const ka = sortKey(a), kb = sortKey(b);
+      for (let i = 0; i < 3; i++) { if (ka[i] !== kb[i]) return ka[i] - kb[i]; }
+      return 0;
+    });
+    const byDept = new Map(subs.map(s => [s.department_id, s]));
+    const title = [data.event_name, data.event_edition].filter(Boolean).join('  ·  ') || 'Event';
+    const company = (data.brand && data.brand.company_name) || '';
+
+    const rows = depts.map(d => {
+      const isChild = d.parent_id != null && ids.has(d.parent_id);
+      const sub = byDept.get(d.id);
+      const pct = sub ? (sub.overall_progress || 0) : null;
+      const badge = (showBadges && sub) ? pvBadge(pct) : null;
+      return `
+        <div class="pvo-row">
+          <i style="background:${escapeHtml(d.stream_color || '#3B82F6')}"></i>
+          <span class="pvo-name" style="color:${escapeHtml(d.stream_color || '#3B82F6')}">${isChild ? '&middot; ' : ''}${escapeHtml(d.name)}</span>
+          ${sub
+            ? `<span class="pvo-pct">${pct}%</span>${badge ? `<span class="pvo-badge" style="color:${badge.color}">${badge.text}</span>` : ''}`
+            : '<span class="pvo-none">No Data Submitted</span>'}
+        </div>`;
+    }).join('');
+
+    const avg = subs.length
+      ? Math.round(subs.reduce((a, s) => a + (s.overall_progress || 0), 0) / subs.length)
+      : 0;
+    return `
+      ${pvLogo(data)}
+      ${company ? `<div class="pv-company">${escapeHtml(company.toUpperCase())}</div>` : ''}
+      <div class="pv-event">${escapeHtml(title)}</div>
+      <div class="pv-subline">Daily Progress Report &middot; Generated by CLIO &middot; ${escapeHtml((data.latest && data.latest.date) || '')}</div>
+      <div class="pvo-grid">${rows}</div>
+      ${showAvg ? `<div class="pv-footline">Overall Average Completion: ${avg}% &middot; ${subs.length}/${depts.length} departments reporting</div>` : ''}
+    `;
+  }
+
+  function pvDeptOverview(data, cfg) {
+    const rcfg = cfg.dept_overview || {};
+    const { dept, sub } = pvSample();
+    const color = dept.stream_color || '#3B82F6';
+    const tiles = Math.min(sub.photo_count || 0, 6);
+    const photoTiles = tiles
+      ? `<div class="pvd-photorow"><span class="pvd-photolabel">PHOTOS</span>${'<span class="pvd-phototile"></span>'.repeat(tiles)}<span class="pvd-photocount">${sub.photo_count}</span></div>`
+      : '';
+    return `
+      ${pvLogo(data)}
+      <div class="pv-accentbar" style="background:${escapeHtml(color)}"></div>
+      <div class="pvd-name" style="color:${escapeHtml(color)}">${escapeHtml(dept.name.toUpperCase())}</div>
+      <div class="pv-subline">HOD &middot; Submitted ${escapeHtml((data.latest && data.latest.date) || '')}</div>
+      <div class="pvd-cols">
+        <div class="pvd-left">
+          <div class="pvd-bignum">${sub.overall_progress || 0}%</div>
+          <div class="pvd-biglabel">Overall Completion</div>
+          ${photoTiles}
+        </div>
+        <div class="pvd-right">
+          <div class="pv-block"><span class="pv-blocklabel" style="color:var(--pv-muted)">STATUS</span>${escapeHtml(sub.status_text || 'n/a')}</div>
+          ${(rcfg.show_highlights !== false && sub.highlights) ? `<div class="pv-block edge" style="border-color:${PV_GREEN}"><span class="pv-blocklabel" style="color:${PV_GREEN}">HIGHLIGHTS</span>${escapeHtml(sub.highlights)}</div>` : ''}
+          ${(rcfg.show_blockers !== false && sub.blockers) ? `<div class="pv-block edge" style="border-color:${PV_RED}"><span class="pv-blocklabel" style="color:${PV_RED}">BLOCKERS</span>${escapeHtml(sub.blockers)}</div>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  function pvDeptSchedule(data, cfg) {
+    const rcfg = cfg.dept_schedule || {};
+    const showDonut = rcfg.show_donut !== false;
+    const { dept } = pvSample();
+    const color = dept.stream_color || '#3B82F6';
+    const mock = [
+      ['08:00', 'Site walk and safety briefing', 'Completed', PV_GREEN],
+      ['10:30', 'Structure build, block A', 'Completed', PV_GREEN],
+      ['14:00', 'Cabling and power distribution', 'In Progress', PV_AMBER],
+      ['17:30', 'Vendor delivery, staging area', 'Pending', 'var(--pv-muted)']
+    ];
+    const rows = mock.map(([t, a, s, c], i) => `
+      <div class="pvs-row${i % 2 === 0 ? ' alt' : ''}">
+        <span class="pvs-time">${t}</span><span class="pvs-act">${a}</span><span class="pvs-st" style="color:${c}">${s.toUpperCase()}</span>
+      </div>`).join('');
+    const donut = showDonut ? `
+      <div class="pvs-donut">
+        <div class="pvs-ring" style="background:conic-gradient(${escapeHtml(color)} 0 180deg, ${PV_AMBER} 180deg 270deg, #374151 270deg 360deg)"><span>50%<small>done</small></span></div>
+        <div class="pvs-legend">
+          <span><i style="background:${escapeHtml(color)}"></i>Completed</span>
+          <span><i style="background:${PV_AMBER}"></i>In Progress</span>
+          <span><i style="background:#374151"></i>Pending</span>
+        </div>
+      </div>` : '';
+    return `
+      ${pvLogo(data)}
+      <div class="pv-accentbar" style="background:${escapeHtml(color)}"></div>
+      <div class="pvd-name" style="color:${escapeHtml(color)}">${escapeHtml(dept.name.toUpperCase())} &middot; TODAY'S SCHEDULE</div>
+      <div class="pvs-cols${showDonut ? '' : ' full'}">
+        <div class="pvs-table">
+          <div class="pvs-row head"><span class="pvs-time">TIME</span><span class="pvs-act">ACTIVITY</span><span class="pvs-st">STATUS</span></div>
+          ${rows}
+        </div>
+        ${donut}
+      </div>
+    `;
+  }
+
+  function pvDeptPhotos(data, cfg) {
+    const rcfg = cfg.dept_photos || {};
+    const perPage = Number(rcfg.photos_per_page) || 6;
+    const showTs = rcfg.show_timestamps !== false;
+    const { dept, sub } = pvSample();
+    const color = dept.stream_color || '#3B82F6';
+    const cols = perPage <= 4 ? 2 : 3;
+    const captions = (sub.captions && sub.captions.length)
+      ? sub.captions
+      : ['Stage deck progress', 'LED wall install', 'Crew briefing', 'North gate build'];
+    const cells = Array.from({ length: perPage }, (_, i) => {
+      const cap = captions[i % captions.length];
+      const meta = [cap, showTs ? '18:42' : null].filter(Boolean).join(' &middot; ');
+      return `<div class="pvp-cell"><div class="pvp-img"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M3 17l5-4 3 2.4L16 11l5 5"/></svg></div><div class="pvp-cap">${meta}</div></div>`;
+    }).join('');
+    return `
+      ${pvLogo(data)}
+      <div class="pv-accentbar" style="background:${escapeHtml(color)}"></div>
+      <div class="pvd-name" style="color:${escapeHtml(color)}">${escapeHtml(dept.name.toUpperCase())} &middot; PROGRESS PHOTOS</div>
+      <div class="pvp-grid" style="grid-template-columns:repeat(${cols}, 1fr)">${cells}</div>
+    `;
+  }
+
+  function pvNoSubmission(data) {
+    const depts = (state.previewData && state.previewData.departments) || [];
+    const subs = (state.previewData && state.previewData.latest && state.previewData.latest.submissions) || [];
+    const filed = new Set(subs.map(s => s.department_id));
+    const missing = depts.find(d => !filed.has(d.id));
+    const name = missing ? missing.name : 'DEPARTMENT';
+    return `
+      <div class="pvn-center">
+        <div class="pvn-title">${escapeHtml(name)}: No Update Submitted</div>
+        <div class="pvn-sub">HOD was reminded. No data received before report generation.</div>
+      </div>
+    `;
+  }
+
+  // ── True preview (LibreOffice render) ─────────────────────
+  function setPreviewTab(tab) {
+    const live = tab === 'live';
+    $('pv-tab-live').classList.toggle('on', live);
+    $('pv-tab-true').classList.toggle('on', !live);
+    $('pv-tab-live').setAttribute('aria-selected', String(live));
+    $('pv-tab-true').setAttribute('aria-selected', String(!live));
+    $('pv-live').hidden = !live;
+    $('pv-true').hidden = live;
+  }
+
+  async function renderTruePreview() {
+    const date = $('rb-date').value || state.today;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) { toast('Pick a date first.', { err: true }); return; }
+    const btn = $('pv-render-btn');
+    btn.disabled = true;
+    const prevHtml = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner"></span> Rendering&hellip;';
+    $('pv-render-hint').textContent = 'Generating the deck and rasterizing slides. This takes 10 to 30 seconds.';
+    try {
+      await savePendingReportConfig();
+      const data = await apiJson('/api/admin/report-preview-render', { method: 'POST', body: { date } });
+      if (!data.available) {
+        state.trueImages = [];
+        $('pv-film').hidden = true;
+        $('pv-true-empty').hidden = false;
+        $('pv-true-empty').textContent = 'The true renderer is not installed on this server (needs LibreOffice + poppler). The Live tab remains the guide.';
+      } else {
+        state.trueImages = data.images || [];
+        state.trueIdx = 0;
+        renderFilmstrip();
+        toast(`True preview rendered: ${state.trueImages.length} slides`);
+      }
+    } catch (err) {
+      toast('Render failed: ' + err.message, { err: true });
+    }
+    btn.disabled = false;
+    btn.innerHTML = prevHtml;
+    $('pv-render-hint').textContent = 'Renders the real PPTX through LibreOffice. Takes 10 to 30 seconds.';
+  }
+
+  function renderFilmstrip() {
+    const imgs = state.trueImages || [];
+    $('pv-film').hidden = !imgs.length;
+    $('pv-true-empty').hidden = !!imgs.length;
+    if (!imgs.length) return;
+    // Image URLs carry the password: <img> tags cannot send headers.
+    const withPw = (u) => `${u}&password=${encodeURIComponent(state.pw)}`;
+    const idx = Math.min(state.trueIdx, imgs.length - 1);
+    state.trueIdx = idx;
+    $('film-img').src = withPw(imgs[idx]);
+    $('film-meta').textContent = `Slide ${idx + 1} of ${imgs.length} · arrow keys to browse`;
+    const strip = $('film-strip');
+    strip.innerHTML = '';
+    imgs.forEach((u, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'film-thumb' + (i === idx ? ' on' : '');
+      b.setAttribute('aria-label', `Slide ${i + 1}`);
+      b.innerHTML = `<img src="${escapeHtml(withPw(u))}" alt="" loading="lazy" />`;
+      b.addEventListener('click', () => { state.trueIdx = i; renderFilmstrip(); });
+      strip.appendChild(b);
+    });
+    const on = strip.querySelector('.film-thumb.on');
+    if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  function filmKeydown(e) {
+    if (!$('sec-report').classList.contains('on') || $('pv-true').hidden || $('pv-film').hidden) return;
+    if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    if (e.key === 'ArrowRight' && state.trueIdx < state.trueImages.length - 1) {
+      state.trueIdx += 1; renderFilmstrip(); e.preventDefault();
+    } else if (e.key === 'ArrowLeft' && state.trueIdx > 0) {
+      state.trueIdx -= 1; renderFilmstrip(); e.preventDefault();
+    }
+  }
+
+  async function generateTestDeck() {
+    const date = $('rb-date').value || state.today;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) { toast('Pick a date first.', { err: true }); return; }
+    const btn = $('rb-generate');
+    btn.disabled = true;
+    const prevText = btn.textContent;
+    btn.textContent = 'Generating…';
+    try {
+      await savePendingReportConfig();
+      await apiJson('/api/generate-report', { method: 'POST', body: { date } });
+      toast(`Test deck generated for ${date}`);
+      downloadReport(date);
+    } catch (err) {
+      toast('Test deck failed: ' + err.message, { err: true });
+    }
+    btn.disabled = false;
+    btn.textContent = prevText;
+  }
+
+  function initReportBindings() {
+    $('report-dimensions').addEventListener('change', previewRefresh);
+    $('tpl-file').addEventListener('change', uploadTemplate);
+    $('tpl-mode').querySelectorAll('button').forEach(b => {
+      b.addEventListener('click', () => setTemplateMode(b.dataset.mode));
+    });
+    $('tpl-colors').addEventListener('change', () => {
+      state.reportConfig.template_colors = $('tpl-colors').checked;
+    });
+    $('pv-tab-live').addEventListener('click', () => setPreviewTab('live'));
+    $('pv-tab-true').addEventListener('click', () => setPreviewTab('true'));
+    $('pv-render-btn').addEventListener('click', renderTruePreview);
+    $('rb-generate').addEventListener('click', generateTestDeck);
+    document.addEventListener('keydown', filmKeydown);
   }
 
   // ══════════════════════════════════════════════════════════
@@ -1054,6 +1512,7 @@
 
     // Report
     $('report-save').addEventListener('click', saveReport);
+    initReportBindings();
 
     // Delivery
     $('pm-add').addEventListener('click', addPmEmail);

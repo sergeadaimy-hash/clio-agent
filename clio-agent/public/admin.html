@@ -222,25 +222,90 @@
         <div class="admin-topline">
           <h1>Report</h1>
         </div>
-        <!-- The report builder upgrade mounts inside this root in a later task. -->
         <div id="report-root">
-          <div class="panel-box panel-gap">
-            <h4>Deck Format</h4>
-            <div class="field" style="max-width:260px;margin-bottom:4px;">
-              <label for="report-dimensions">Slide dimensions</label>
-              <select class="input" id="report-dimensions">
-                <option value="16:9">16:9 widescreen</option>
-                <option value="4:3">4:3 standard</option>
-              </select>
+          <div class="rb-grid">
+
+            <div class="rb-controls">
+              <div class="panel-box panel-gap">
+                <h4>Template</h4>
+                <div id="tpl-state" class="tpl-state"></div>
+                <input type="file" id="tpl-file" accept=".pptx" hidden />
+                <div class="seg" id="tpl-mode" role="group" aria-label="Deck styling mode">
+                  <button type="button" data-mode="tokens">Brand tokens</button>
+                  <button type="button" data-mode="template">Imported template</button>
+                </div>
+                <label class="switch tpl-colors-row" id="tpl-colors-row" hidden>
+                  <input type="checkbox" id="tpl-colors" /><span class="track"></span>
+                  Use the template&#39;s theme accent color
+                </label>
+                <p class="panel-note">Import a .pptx to inherit its masters, theme, and slide size. CLIO deletes its slides and lays report content onto its design.</p>
+              </div>
+
+              <div class="panel-box panel-gap">
+                <h4>Deck Format</h4>
+                <div class="field" style="max-width:260px;margin-bottom:4px;">
+                  <label for="report-dimensions">Slide dimensions</label>
+                  <select class="input" id="report-dimensions">
+                    <option value="16:9">16:9 widescreen</option>
+                    <option value="4:3">4:3 standard</option>
+                  </select>
+                  <p class="hint" id="report-dimensions-hint">Ignored in template mode: the imported deck keeps its own size.</p>
+                </div>
+              </div>
+
+              <div class="panel-box">
+                <h4>Slide Structure</h4>
+                <p class="panel-note panel-gap">Toggle slide types on or off, reorder them, and tune per-slide options. The nightly deck follows this structure exactly.</p>
+                <div id="slide-list"></div>
+              </div>
+
+              <div class="save-bar">
+                <button type="button" class="action-btn primary" id="report-save">Save report settings</button>
+              </div>
             </div>
-          </div>
-          <div class="panel-box">
-            <h4>Slide Structure</h4>
-            <p class="panel-note panel-gap">Toggle slide types on or off, reorder them, and tune per-slide options. The nightly deck follows this structure exactly.</p>
-            <div id="slide-list"></div>
-          </div>
-          <div class="save-bar">
-            <button type="button" class="action-btn primary" id="report-save">Save report settings</button>
+
+            <div class="rb-preview">
+              <div class="panel-box panel-gap">
+                <div class="pv-head">
+                  <h4>Preview</h4>
+                  <div class="pv-tabs" role="tablist">
+                    <button type="button" class="on" id="pv-tab-live" role="tab" aria-selected="true">Live</button>
+                    <button type="button" id="pv-tab-true" role="tab" aria-selected="false">True</button>
+                  </div>
+                </div>
+
+                <div id="pv-live">
+                  <p class="pv-note">Approximation, generate a true preview for exact output.</p>
+                  <div id="pv-boards"></div>
+                </div>
+
+                <div id="pv-true" hidden>
+                  <div class="pv-true-bar">
+                    <button type="button" class="btn-sm solid" id="pv-render-btn">Render true preview</button>
+                    <span class="pv-render-hint" id="pv-render-hint">Renders the real PPTX through LibreOffice. Takes 10 to 30 seconds.</span>
+                  </div>
+                  <div id="pv-film" hidden>
+                    <div class="film-main"><img id="film-img" alt="Rendered slide" /></div>
+                    <div class="film-meta" id="film-meta"></div>
+                    <div class="film-strip" id="film-strip"></div>
+                  </div>
+                  <div class="pv-empty" id="pv-true-empty">No render yet for this date.</div>
+                </div>
+              </div>
+
+              <div class="panel-box">
+                <h4>Test Deck</h4>
+                <div class="testdeck-row">
+                  <div class="field" style="margin-bottom:0;">
+                    <label for="rb-date">Data date</label>
+                    <input type="date" class="input" id="rb-date" />
+                  </div>
+                  <button type="button" class="btn-sm" id="rb-generate">Generate test deck</button>
+                </div>
+                <p class="panel-note">Shared with the True preview. Builds the deck from this date&#39;s submissions and downloads it.</p>
+              </div>
+            </div>
+
           </div>
         </div>
       </section>

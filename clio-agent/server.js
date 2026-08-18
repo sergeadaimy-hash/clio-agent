@@ -374,6 +374,9 @@ async function savePhotos(files, dept, date) {
 // ── Express ─────────────────────────────────────────────────
 const waWebhook = require('./whatsapp-webhook');
 const app = express();
+// Behind Railway's proxy req.ip is the proxy socket without this; per-IP
+// rate limiting would collapse into one shared bucket.
+app.set('trust proxy', 1);
 waWebhook.mount(app, { onInbound: handleInboundWhatsApp, onStatus: handleWhatsAppStatus });
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));
@@ -1089,6 +1092,15 @@ app.get('/api/archive/:date/:dept/:file', requireAdmin, (req, res) => {
 // ── LLM Content Review ─────────────────────────────────────
 // Light in-memory rate limit for the public review endpoint
 const reviewHits = new Map();
+// Sweep stale IPs so the map cannot grow without bound on a public endpoint.
+setInterval(() => {
+  const cutoff = Date.now() - 60_000;
+  for (const [ip, hits] of reviewHits) {
+    const live = hits.filter(t => t > cutoff);
+    if (live.length === 0) reviewHits.delete(ip);
+    else reviewHits.set(ip, live);
+  }
+}, 10 * 60_000).unref();
 function reviewRateLimit(req, res, next) {
   const ip = req.ip || 'unknown';
   const now = Date.now();
@@ -1237,6 +1249,11 @@ async function runNightlyReport() {
   try {
     const { report_path } = await runGenerateReport(date);
     logAction(null, date, 'report_generated');
+    // auto_email defaults on; the admin Delivery toggle can switch it off.
+    if (getDeliveryConfig().auto_email === false) {
+      console.log('[cron] auto email disabled, report generated only');
+      return;
+    }
     await notifications.sendReportDelivery({
       date, reportPath: report_path, departments: depts, submissions
     });

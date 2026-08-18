@@ -689,7 +689,11 @@ app.get('/api/admin/settings', requireAdmin, (req, res) => {
       brand_config: brandConfig,
       report_config: reportConfig,
       pm_emails: getPmEmails(),
-      delivery_config: deliveryConfig
+      delivery_config: deliveryConfig,
+      whatsapp: {
+        enabled: process.env.WHATSAPP_ENABLED === 'true',
+        configured: wa.configured()
+      }
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

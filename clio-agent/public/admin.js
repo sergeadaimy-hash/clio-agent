@@ -1,5 +1,5 @@
 // CLIO admin console: vanilla JS, sidebar shell, header-authenticated API.
-// Sections: overview, departments, whatsapp (placeholder), brand, report,
+// Sections: overview, departments, whatsapp, brand, report,
 // delivery, schedule, archive, project.
 (() => {
   'use strict';
@@ -18,7 +18,11 @@
     departments: [],          // last /api/admin/departments payload (Departments section)
     previewData: null,        // last /api/admin/report-preview-data payload
     trueImages: [],           // rendered slide image URLs (True preview tab)
-    trueIdx: 0                // selected slide in the filmstrip
+    trueIdx: 0,               // selected slide in the filmstrip
+    waTimer: null,            // WhatsApp inbox poll (10s while section visible)
+    waThreads: [],            // last /api/admin/whatsapp/threads payload
+    waActiveId: null,         // open thread id, null when nothing selected
+    waSearch: ''              // client-side thread filter
   };
 
   // ── DOM utils ─────────────────────────────────────────────
@@ -126,6 +130,7 @@
 
   function logout() {
     if (state.overviewTimer) { clearInterval(state.overviewTimer); state.overviewTimer = null; }
+    if (state.waTimer) { clearInterval(state.waTimer); state.waTimer = null; }
     sessionStorage.removeItem('clio_admin_pw');
     state.pw = '';
     $('shell').hidden = true;
@@ -187,7 +192,7 @@
   const loaders = {
     overview: () => loadOverview(),
     departments: () => loadDepartments(),
-    whatsapp: () => {},
+    whatsapp: () => loadWhatsapp(),
     brand: () => loadBrand(),
     report: () => loadReport(),
     delivery: () => loadDelivery(),
@@ -214,6 +219,8 @@
   async function loadOverview(opts = {}) {
     if (!state.viewDate) state.viewDate = state.today;
     const date = state.viewDate;
+    refreshWaBadge(); // keep the sidebar WhatsApp unread count fresh
+
     let depts = [], subs = [];
     try {
       [depts, subs] = await Promise.all([
@@ -562,6 +569,313 @@
   function addDepartment() {
     document.querySelectorAll('.dept-editor').forEach(e => e.remove());
     $('dept-list').prepend(deptEditor({}, state.departments || []));
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // WHATSAPP INBOX
+  // ══════════════════════════════════════════════════════════
+  // Threaded per-HOD inbox over the Meta Cloud API log. Polls every
+  // 10 seconds while the section is visible; the poll also feeds the
+  // sidebar unread badge. Takeover flips a thread between agent and
+  // human mode; the composer only unlocks in human mode.
+
+  function waDigits(n) { return String(n || '').replace(/\D/g, ''); }
+
+  function waFmtNumber(n) {
+    const d = waDigits(n);
+    return d ? '+' + d : '';
+  }
+
+  function waMaskNumber(n) {
+    const d = waDigits(n);
+    if (d.length < 7) return waFmtNumber(n);
+    return `+${d.slice(0, 3)} ${d.slice(3, 4)}• ••• ••${d.slice(-2)}`;
+  }
+
+  function waInitials(t) {
+    const name = (t.display_name || '').trim();
+    if (name) {
+      const parts = name.split(/\s+/);
+      return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
+    }
+    return waDigits(t.wa_number).slice(-2) || '?';
+  }
+
+  // Stream color drives the avatar; invalid or missing colors fall
+  // back to the token-accent gradient baked into .avatar.
+  function waAvatarStyle(t) {
+    const c = t.stream_color || '';
+    if (!/^#[0-9a-fA-F]{6}$/.test(c)) return '';
+    return `background: linear-gradient(135deg, ${c}, color-mix(in srgb, ${c} 55%, #000))`;
+  }
+
+  function waRelTime(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    const now = new Date();
+    if ((now - d) / 1000 < 60) return 'now';
+    if (d.toDateString() === now.toDateString()) {
+      return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    }
+    const yd = new Date(now); yd.setDate(yd.getDate() - 1);
+    if (d.toDateString() === yd.toDateString()) return 'Yesterday';
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  }
+
+  function waClock(iso) {
+    const d = new Date(iso);
+    return isNaN(d) ? '' : d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function waDayLabel(iso) {
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase();
+  }
+
+  async function loadWhatsapp() {
+    if (!state.settings || !state.settings.whatsapp) {
+      try { await fetchSettings(); } catch {}
+    }
+    await refreshWaThreads();
+    if (state.waActiveId != null) await refreshWaMessages({ quiet: true });
+    clearInterval(state.waTimer);
+    state.waTimer = setInterval(async () => {
+      if (!$('sec-whatsapp').classList.contains('on')) return;
+      await refreshWaThreads({ quiet: true });
+      if (state.waActiveId != null) await refreshWaMessages({ quiet: true });
+    }, 10000);
+  }
+
+  function updateWaNavBadge(threads) {
+    const total = (threads || []).reduce((sum, t) => sum + (t.unread_count || 0), 0);
+    const badge = $('wa-nav-badge');
+    badge.hidden = !total;
+    badge.textContent = total > 99 ? '99+' : String(total);
+  }
+
+  // Lightweight badge refresh usable from outside the section.
+  async function refreshWaBadge() {
+    if (!state.pw) return;
+    try { updateWaNavBadge(await apiJson('/api/admin/whatsapp/threads')); } catch {}
+  }
+
+  async function refreshWaThreads(opts = {}) {
+    let threads;
+    try { threads = await apiJson('/api/admin/whatsapp/threads'); }
+    catch (err) {
+      if (!opts.quiet) toast('Failed to load WhatsApp threads: ' + err.message, { err: true });
+      return;
+    }
+    state.waThreads = threads;
+    updateWaNavBadge(threads);
+    renderWaThreads();
+    if (state.waActiveId != null) renderWaChatHead(); // mode may have changed server-side
+  }
+
+  function renderWaThreads() {
+    const threads = state.waThreads || [];
+    const hasAny = threads.length > 0;
+    $('wa-panel').hidden = !hasAny;
+    $('wa-none').hidden = hasAny;
+    if (!hasAny) { renderWaConfigPills(); return; }
+
+    const q = state.waSearch.trim().toLowerCase();
+    const qd = q.replace(/\D/g, '');
+    const shown = !q ? threads : threads.filter(t =>
+      (t.display_name || '').toLowerCase().includes(q) ||
+      (t.department_name || '').toLowerCase().includes(q) ||
+      (qd !== '' && waDigits(t.wa_number).includes(qd))
+    );
+
+    const box = $('wa-threads');
+    box.innerHTML = '';
+    if (!shown.length) {
+      box.innerHTML = '<p class="panel-note" style="padding:14px;">No conversations match.</p>';
+      return;
+    }
+    shown.forEach(t => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'wa-thread-item' + (t.id === state.waActiveId ? ' on' : '');
+      const name = t.display_name || waFmtNumber(t.wa_number);
+      const human = t.mode === 'human';
+      btn.innerHTML = `
+        <div class="avatar" style="${waAvatarStyle(t)}">${escapeHtml(waInitials(t))}</div>
+        <div class="wt-main">
+          <div class="wt-name">${escapeHtml(name)} <time>${escapeHtml(waRelTime(t.last_message_at))}</time></div>
+          <div class="wt-tags">
+            ${t.department_name ? `<span class="wt-dept">${escapeHtml(t.department_name)}</span>` : ''}
+            <span class="mode-chip ${human ? 'human' : 'agent'}">&#9679; ${human ? 'HUMAN' : 'AGENT'}</span>
+          </div>
+          <div class="wt-prev">${escapeHtml(t.last_body || '')}</div>
+        </div>
+        ${t.unread_count ? '<span class="unread-dot"></span>' : ''}
+      `;
+      btn.addEventListener('click', () => openWaThread(t.id));
+      box.appendChild(btn);
+    });
+  }
+
+  function renderWaConfigPills() {
+    const wa = (state.settings && state.settings.whatsapp) || {};
+    const pill = (ok, onLabel, offLabel) =>
+      `<span class="pill${ok ? '' : ' warn'}">${ok ? onLabel : offLabel}</span>`;
+    $('wa-config-pills').innerHTML =
+      pill(wa.enabled, 'WHATSAPP ENABLED', 'WHATSAPP DISABLED') +
+      pill(wa.configured, 'META CREDENTIALS SET', 'META CREDENTIALS MISSING');
+  }
+
+  async function openWaThread(id) {
+    state.waActiveId = id;
+    $('wa-body').classList.add('chat-open'); // mobile drill-in
+    const t = state.waThreads.find(x => x.id === id);
+    if (t) t.unread_count = 0; // server marks read on the messages fetch
+    renderWaThreads();
+    updateWaNavBadge(state.waThreads);
+    renderWaChatHead();
+    $('wa-nosel').hidden = true;
+    $('wa-chat-head').hidden = false;
+    $('wa-msgs').hidden = false;
+    $('wa-msgs').innerHTML = '';
+    await refreshWaMessages({ scroll: 'bottom' });
+  }
+
+  function renderWaChatHead() {
+    const t = state.waThreads.find(x => x.id === state.waActiveId);
+    if (!t) return;
+    const av = $('wa-ch-avatar');
+    av.textContent = waInitials(t);
+    av.style.cssText = waAvatarStyle(t);
+    $('wa-ch-name').textContent = t.display_name || waFmtNumber(t.wa_number);
+    $('wa-ch-num').textContent =
+      (t.department_name ? t.department_name + ' · ' : '') + waMaskNumber(t.wa_number);
+    const waCfg = (state.settings && state.settings.whatsapp) || {};
+    $('wa-test-badge').hidden = !waCfg.enabled;
+    const human = t.mode === 'human';
+    $('wa-takeover').hidden = human;
+    $('wa-return').hidden = !human;
+    $('wa-agent-bar').hidden = human;
+    $('wa-human-bar').hidden = !human;
+  }
+
+  async function refreshWaMessages(opts = {}) {
+    const id = state.waActiveId;
+    if (id == null) return;
+    let msgs;
+    try { msgs = await apiJson(`/api/admin/whatsapp/threads/${id}/messages`); }
+    catch (err) {
+      if (!opts.quiet) toast('Failed to load messages: ' + err.message, { err: true });
+      return;
+    }
+    if (id !== state.waActiveId) return; // thread switched mid-flight
+    renderWaMessages(msgs, opts);
+  }
+
+  function renderWaMessages(msgs, opts = {}) {
+    const box = $('wa-msgs');
+    // Stay pinned to the bottom unless the admin has scrolled up to read.
+    const pinned = opts.scroll === 'bottom' ||
+      box.scrollTop + box.clientHeight >= box.scrollHeight - 60;
+    let html = '';
+    let lastDay = '';
+    msgs.forEach(m => {
+      const day = waDayLabel(m.created_at);
+      if (day && day !== lastDay) {
+        html += `<div class="day-divider">${escapeHtml(day)}</div>`;
+        lastDay = day;
+      }
+      html += waBubble(m);
+    });
+    if (!msgs.length) html = '<p class="panel-note" style="align-self:center;">No messages in this thread yet.</p>';
+    box.innerHTML = html;
+    if (pinned) box.scrollTop = box.scrollHeight;
+  }
+
+  function waBubble(m) {
+    const out = m.direction === 'out';
+    let tag = '';
+    if (m.message_type === 'template') {
+      tag = `<span class="tpl-tag">Template &middot; ${escapeHtml(m.template_name || 'unnamed')}</span>`;
+    } else if (out && m.sent_by === 'agent') {
+      tag = '<span class="tpl-tag agent">CLIO Agent &middot; auto-reply</span>';
+    } else if (out && m.sent_by === 'human') {
+      tag = '<span class="tpl-tag human">Sent by admin</span>';
+    }
+    let ticks = '';
+    if (out) {
+      if (m.pending) ticks = '<span class="ticks t-sent">&#8230;</span>';
+      else if (m.status === 'read') ticks = '<span class="ticks">&#10003;&#10003;</span>';
+      else if (m.status === 'delivered') ticks = '<span class="ticks t-delivered">&#10003;&#10003;</span>';
+      else if (m.status === 'failed') ticks = '<span class="ticks t-failed">failed</span>';
+      else ticks = '<span class="ticks t-sent">&#10003;</span>';
+    }
+    return `<div class="bubble ${out ? 'out' : 'in'}${m.pending ? ' pending' : ''}">
+      ${tag}${escapeHtml(m.body || '')}
+      <div class="meta">${escapeHtml(waClock(m.created_at))} ${ticks}</div>
+    </div>`;
+  }
+
+  async function sendWaReply() {
+    const id = state.waActiveId;
+    const input = $('wa-input');
+    const text = input.value.trim();
+    if (!text || id == null) return;
+    input.value = '';
+    $('wa-send').disabled = true;
+    // Optimistic append; the refetch below reconciles against the DB row.
+    const box = $('wa-msgs');
+    box.insertAdjacentHTML('beforeend', waBubble({
+      direction: 'out', body: text, sent_by: 'human',
+      message_type: 'text', created_at: new Date().toISOString(), pending: true
+    }));
+    box.scrollTop = box.scrollHeight;
+    try {
+      const res = await apiJson(`/api/admin/whatsapp/threads/${id}/reply`, {
+        method: 'POST', body: { text }
+      });
+      if (!res.success) {
+        toast('WhatsApp send failed. Meta rejected the message; it is logged as failed.', { err: true });
+      }
+    } catch (err) {
+      toast('Reply failed: ' + err.message, { err: true });
+    } finally {
+      $('wa-send').disabled = false;
+    }
+    await refreshWaMessages({ quiet: true, scroll: 'bottom' });
+    refreshWaThreads({ quiet: true });
+  }
+
+  async function setWaMode(mode) {
+    const id = state.waActiveId;
+    if (id == null) return;
+    try {
+      await apiJson(`/api/admin/whatsapp/threads/${id}/mode`, { method: 'POST', body: { mode } });
+    } catch (err) {
+      toast('Mode change failed: ' + err.message, { err: true });
+      return;
+    }
+    const t = state.waThreads.find(x => x.id === id);
+    if (t) t.mode = mode;
+    renderWaChatHead();
+    renderWaThreads();
+    if (mode === 'human') $('wa-input').focus();
+    toast(mode === 'human'
+      ? 'You have taken over this conversation. The agent stays silent until you hand it back.'
+      : 'Thread handed back to the CLIO Agent.');
+  }
+
+  function initWaBindings() {
+    $('wa-search').addEventListener('input', () => {
+      state.waSearch = $('wa-search').value;
+      renderWaThreads();
+    });
+    $('wa-back').addEventListener('click', () => $('wa-body').classList.remove('chat-open'));
+    $('wa-takeover').addEventListener('click', () => setWaMode('human'));
+    $('wa-return').addEventListener('click', () => setWaMode('agent'));
+    $('wa-send').addEventListener('click', sendWaReply);
+    $('wa-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendWaReply(); });
   }
 
   // ══════════════════════════════════════════════════════════
@@ -1486,6 +1800,7 @@
   document.addEventListener('DOMContentLoaded', async () => {
     initNav();
     initBrandBindings();
+    initWaBindings();
 
     // Gate
     $('gate-btn').addEventListener('click', tryLogin);

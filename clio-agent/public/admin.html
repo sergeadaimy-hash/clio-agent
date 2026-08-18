@@ -46,7 +46,7 @@
 
       <button type="button" class="nav-item on" data-sec="overview"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span class="nav-label">Overview</span></button>
       <button type="button" class="nav-item" data-sec="departments"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg><span class="nav-label">Departments</span></button>
-      <button type="button" class="nav-item" data-sec="whatsapp"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 01-9 8.4 8.6 8.6 0 01-3.9-.9L3 20l1-4.9a8.4 8.4 0 1117-3.6z"/></svg><span class="nav-label">WhatsApp</span></button>
+      <button type="button" class="nav-item" data-sec="whatsapp"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 01-9 8.4 8.6 8.6 0 01-3.9-.9L3 20l1-4.9a8.4 8.4 0 1117-3.6z"/></svg><span class="nav-label">WhatsApp</span><span class="badge" id="wa-nav-badge" hidden></span></button>
       <button type="button" class="nav-item" data-sec="brand"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg><span class="nav-label">Brand</span></button>
       <button type="button" class="nav-item" data-sec="report"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg><span class="nav-label">Report</span></button>
       <button type="button" class="nav-item" data-sec="delivery"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 8l9 6 9-6M4 6h16a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V7a1 1 0 011-1z"/></svg><span class="nav-label">Delivery</span></button>
@@ -120,15 +120,57 @@
         <div class="admin-topline">
           <h1>WhatsApp</h1>
         </div>
-        <!-- The live inbox mounts here once the WhatsApp integration task lands. -->
         <div id="wa-root">
-          <div class="panel-box">
-            <div class="wa-empty">
-              <div class="we-ring"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 01-9 8.4 8.6 8.6 0 01-3.9-.9L3 20l1-4.9a8.4 8.4 0 1117-3.6z"/></svg></div>
-              <h5>Inbox not active yet</h5>
-              <p>The WhatsApp inbox activates once the WhatsApp integration is configured. Reminders, delivery ticks, and HOD replies will thread here per person.</p>
+
+          <!-- Live inbox: thread list + conversation pane -->
+          <div class="panel-box wa-panel" id="wa-panel" hidden>
+            <div class="wa-body" id="wa-body">
+              <div class="wa-list">
+                <input type="search" class="wa-search" id="wa-search" placeholder="&#8981;&nbsp; Search conversations" autocomplete="off" spellcheck="false" />
+                <div id="wa-threads"></div>
+              </div>
+              <div class="wa-chat">
+
+                <div class="wa-empty wa-nosel" id="wa-nosel">
+                  <div class="we-ring"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 01-9 8.4 8.6 8.6 0 01-3.9-.9L3 20l1-4.9a8.4 8.4 0 1117-3.6z"/></svg></div>
+                  <h5>Select a conversation</h5>
+                  <p>Pick a thread on the left to read the full exchange, watch delivery ticks, or take over from the agent.</p>
+                </div>
+
+                <div class="wa-chat-head" id="wa-chat-head" hidden>
+                  <button type="button" class="wa-back" id="wa-back" aria-label="Back to conversations">&#8249;</button>
+                  <div class="avatar" id="wa-ch-avatar"></div>
+                  <div class="wa-ch-id">
+                    <div class="wc-name" id="wa-ch-name"></div>
+                    <span class="wc-num" id="wa-ch-num"></span>
+                  </div>
+                  <span class="test-badge" id="wa-test-badge" hidden>META TEST NUMBER &middot; 5 RECIPIENTS MAX</span>
+                  <button type="button" class="takeover-btn" id="wa-takeover" hidden>&#9995; Take over</button>
+                  <button type="button" class="btn-ghost wa-return" id="wa-return" hidden>Return to agent</button>
+                </div>
+
+                <div class="wa-msgs" id="wa-msgs" hidden></div>
+
+                <div class="wa-composer locked" id="wa-agent-bar" hidden>&#9679;&nbsp; CLIO Agent is handling this conversation. Take over to reply yourself.</div>
+                <div class="wa-composer" id="wa-human-bar" hidden>
+                  <input type="text" id="wa-input" placeholder="Reply as admin&hellip;" autocomplete="off" />
+                  <button type="button" class="send" id="wa-send" aria-label="Send reply">&#10148;</button>
+                </div>
+
+              </div>
             </div>
           </div>
+
+          <!-- Empty state: no threads recorded yet -->
+          <div class="panel-box" id="wa-none" hidden>
+            <div class="wa-empty">
+              <div class="we-ring"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 01-9 8.4 8.6 8.6 0 01-3.9-.9L3 20l1-4.9a8.4 8.4 0 1117-3.6z"/></svg></div>
+              <h5>No conversations yet</h5>
+              <p>Threads appear here once WhatsApp is connected and HODs reply to their reminders. Every outbound reminder, delivery tick, and inbound message is logged per person.</p>
+              <div class="wa-config-pills" id="wa-config-pills"></div>
+            </div>
+          </div>
+
         </div>
       </section>
 

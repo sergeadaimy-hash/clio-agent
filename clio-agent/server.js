@@ -128,6 +128,21 @@ function getLogoUrl() {
     return `/uploads/brand/logo.png?v=${stat.mtimeMs}`;
   } catch { return null; }
 }
+// Public-safe subset of brand_config. Only whitelisted keys are returned;
+// logo_path (a filesystem path) must never be exposed via the public API.
+function getPublicBrand() {
+  const b = getBrandConfig();
+  return {
+    company_name: b.company_name || '',
+    background_color: b.background_color || '#0F172A',
+    primary_color: b.primary_color || '#3B82F6',
+    label_color: b.label_color || '#FACC15',
+    text_color: b.text_color || '#E2E8F0',
+    muted_color: b.muted_color || '#64748B',
+    panel_color: b.panel_color || '#1E293B',
+    font_family: b.font_family || 'Sora'
+  };
+}
 
 // Seed settings from .env on first run
 if (!getSetting('event_name') && process.env.EVENT_NAME) {
@@ -257,6 +272,7 @@ app.get('/api/status', (req, res) => {
       event_name: getEventName(),
       event_edition: getEventEdition(),
       logo_url: getLogoUrl(),
+      brand: getPublicBrand(),
       departments: getStatusList(today())
     });
   } catch (err) {

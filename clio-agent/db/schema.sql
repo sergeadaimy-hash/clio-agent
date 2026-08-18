@@ -5,8 +5,14 @@ CREATE TABLE IF NOT EXISTS departments (
   head_email TEXT,
   head_whatsapp TEXT,
   stream_color TEXT DEFAULT '#3B82F6',
-  parent_id INTEGER REFERENCES departments(id)
+  parent_id INTEGER REFERENCES departments(id),
+  username TEXT UNIQUE,
+  password_hash TEXT,
+  credentials_updated_at TEXT
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_dept_username
+  ON departments(username) WHERE username IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS daily_submissions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

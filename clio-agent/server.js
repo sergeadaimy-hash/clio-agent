@@ -14,6 +14,7 @@ const { DateTime } = require('luxon');
 
 const notifications = require('./notifications');
 const renderPreview = require('./render-preview');
+const portalAuth = require('./portal-auth');
 
 // ── Paths ───────────────────────────────────────────────────
 const ROOT = __dirname;
@@ -30,7 +31,15 @@ for (const d of [path.dirname(DB_PATH), UPLOADS_DIR, REPORTS_DIR]) {
 // ── DB init ─────────────────────────────────────────────────
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
-db.exec(fs.readFileSync(SCHEMA_PATH, 'utf8'));
+// On a fresh DB every statement below is a no-op-safe CREATE ... IF NOT
+// EXISTS. On a DB created before the departments.username column existed,
+// the trailing idx_dept_username statement fails (column doesn't exist yet)
+// and aborts the rest of this multi-statement exec; that's fine, every
+// other table here already exists on such a DB. The migrations block
+// below adds the column and recreates the index once it's addable.
+try {
+  db.exec(fs.readFileSync(SCHEMA_PATH, 'utf8'));
+} catch (e) { /* pre-migration DB missing a column referenced by schema.sql */ }
 
 // Migrations
 try {
@@ -45,6 +54,16 @@ try {
 try {
   db.exec('ALTER TABLE departments ADD COLUMN parent_id INTEGER');
 } catch (e) { /* column already exists */ }
+try {
+  db.exec('ALTER TABLE departments ADD COLUMN username TEXT');
+} catch (e) { /* column already exists */ }
+try {
+  db.exec('ALTER TABLE departments ADD COLUMN password_hash TEXT');
+} catch (e) { /* column already exists */ }
+try {
+  db.exec('ALTER TABLE departments ADD COLUMN credentials_updated_at TEXT');
+} catch (e) { /* column already exists */ }
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_dept_username ON departments(username) WHERE username IS NOT NULL');
 
 // Seed departments on first run. Flat array with an optional `parent` field
 // (parent referenced by name). One level deep: a child never has children.
@@ -406,8 +425,11 @@ app.get('/api/status', (req, res) => {
 });
 
 // GET /api/submission/:department_id
-app.get('/api/submission/:department_id', (req, res) => {
+app.get('/api/submission/:department_id', requirePortal, (req, res) => {
   try {
+    if (req.portalDeptId != null && Number(req.params.department_id) !== req.portalDeptId) {
+      return res.status(403).json({ error: 'forbidden' });
+    }
     const date = today();
     const row = db.prepare(`
       SELECT * FROM daily_submissions
@@ -425,9 +447,9 @@ app.get('/api/submission/:department_id', (req, res) => {
 });
 
 // POST /api/submit
-app.post('/api/submit', upload.array('photos', 20), async (req, res) => {
+app.post('/api/submit', upload.array('photos', 20), requirePortal, async (req, res) => {
   try {
-    const {
+    let {
       department_id,
       overall_progress,
       status_text,
@@ -436,6 +458,8 @@ app.post('/api/submit', upload.array('photos', 20), async (req, res) => {
       schedule_updates,
       photo_captions
     } = req.body;
+
+    if (req.portalDeptId != null) department_id = req.portalDeptId;
 
     if (!department_id || overall_progress === undefined || !status_text) {
       return res.status(400).json({ error: 'department_id, overall_progress, status_text are required' });
@@ -600,6 +624,88 @@ function requireAdminOrApiKey(req, res, next) {
   if (key && key === process.env.REPORT_API_KEY) return next();
   return requireAdmin(req, res, next);
 }
+
+// Portal sessions: x-portal-token issued by /api/portal/login. Admin password
+// is also accepted everywhere a portal token is, for testing and support.
+function portalDeptId(req) {
+  const token = req.header('x-portal-token');
+  const deptId = portalAuth.verifyToken(token);
+  if (!deptId) return null;
+  const dept = db.prepare('SELECT id FROM departments WHERE id = ?').get(deptId);
+  return dept ? dept.id : null;
+}
+function isAdminReq(req) {
+  const pass = req.body?.password || req.query?.password || req.header('x-admin-password');
+  return !!pass && pass === process.env.ADMIN_PASSWORD;
+}
+function requirePortal(req, res, next) {
+  if (isAdminReq(req)) { req.portalDeptId = null; return next(); }
+  const id = portalDeptId(req);
+  if (!id) return res.status(401).json({ error: 'login required' });
+  req.portalDeptId = id;
+  next();
+}
+
+// Per-IP rate limit for portal login attempts (separate bucket from review).
+const portalLoginHits = new Map();
+setInterval(() => {
+  const cutoff = Date.now() - 60_000;
+  for (const [ip, hits] of portalLoginHits) {
+    const live = hits.filter(t => t > cutoff);
+    if (live.length === 0) portalLoginHits.delete(ip);
+    else portalLoginHits.set(ip, live);
+  }
+}, 10 * 60_000).unref();
+function portalLoginRateLimit(req, res, next) {
+  const ip = req.ip || 'unknown';
+  const now = Date.now();
+  const windowMs = 60_000;
+  const hits = (portalLoginHits.get(ip) || []).filter(t => now - t < windowMs);
+  if (hits.length >= 10) return res.status(429).json({ error: 'rate limited' });
+  hits.push(now);
+  portalLoginHits.set(ip, hits);
+  next();
+}
+
+app.post('/api/portal/login', portalLoginRateLimit, async (req, res) => {
+  try {
+    const username = String(req.body?.username || '').toLowerCase().trim();
+    const password = String(req.body?.password || '');
+    const dept = username
+      ? db.prepare('SELECT * FROM departments WHERE username = ?').get(username)
+      : null;
+    if (!dept || !portalAuth.verifyPassword(password, dept.password_hash)) {
+      await new Promise(r => setTimeout(r, 300));
+      return res.status(401).json({ error: 'invalid credentials' });
+    }
+    res.json({ token: portalAuth.makeToken(dept.id), department: { id: dept.id, name: dept.name } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/departments/:id/credentials', requireAdmin, (req, res) => {
+  const dept = db.prepare('SELECT * FROM departments WHERE id = ?').get(req.params.id);
+  if (!dept) return res.status(404).json({ error: 'department not found' });
+  let username = (req.body?.username || dept.username || slugify(dept.name).toLowerCase().replace(/_/g, '.')).toLowerCase().trim();
+  if (!/^[a-z0-9._-]{3,40}$/.test(username)) return res.status(400).json({ error: 'invalid username' });
+  const clash = db.prepare('SELECT id FROM departments WHERE username = ? AND id != ?').get(username, dept.id);
+  if (clash) return res.status(409).json({ error: 'username already in use' });
+  const password = portalAuth.generatePassword();
+  db.prepare('UPDATE departments SET username = ?, password_hash = ?, credentials_updated_at = ? WHERE id = ?')
+    .run(username, portalAuth.hashPassword(password), nowStamp(), dept.id);
+  logAction(dept.id, today(), 'credentials_generated');
+  res.json({ username, password });
+});
+
+app.delete('/api/admin/departments/:id/credentials', requireAdmin, (req, res) => {
+  const dept = db.prepare('SELECT * FROM departments WHERE id = ?').get(req.params.id);
+  if (!dept) return res.status(404).json({ error: 'department not found' });
+  db.prepare('UPDATE departments SET username = NULL, password_hash = NULL, credentials_updated_at = ? WHERE id = ?')
+    .run(nowStamp(), dept.id);
+  logAction(dept.id, today(), 'credentials_revoked');
+  res.json({ success: true });
+});
 
 app.post('/api/admin/verify', (req, res) => {
   if (req.body?.password === process.env.ADMIN_PASSWORD) {
@@ -903,7 +1009,10 @@ app.get('/api/admin/report-preview-image', requireAdmin, (req, res) => {
 app.get('/api/admin/departments', requireAdmin, (req, res) => {
   try {
     const depts = db.prepare('SELECT * FROM departments ORDER BY id').all();
-    res.json(depts);
+    res.json(depts.map(d => {
+      const { password_hash, ...rest } = d;
+      return { ...rest, has_credentials: !!password_hash };
+    }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1112,7 +1221,7 @@ function reviewRateLimit(req, res, next) {
   next();
 }
 
-app.post('/api/review-text', reviewRateLimit, async (req, res) => {
+app.post('/api/review-text', reviewRateLimit, requirePortal, async (req, res) => {
   try {
     const { text, field_type } = req.body;
     if (!text || !text.trim()) return res.json({ polished: text || '' });

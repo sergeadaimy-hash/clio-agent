@@ -81,6 +81,10 @@ if (deptCount === 0) {
     idByName[d.name] = info.lastInsertRowid;
   }
   // Pass 2: children, resolved against their parent's id.
+  const resolveParentId = (d) => {
+    if (!(d.parent in idByName)) console.warn(`[db] seed: parent "${d.parent}" not found for ${d.name}, seeding as top-level`);
+    return idByName[d.parent] || null;
+  };
   for (const d of DEFAULT_DEPARTMENTS.filter(d => d.parent)) {
     insert.run(
       d.name,
@@ -88,7 +92,7 @@ if (deptCount === 0) {
       process.env[`DEPT_EMAIL_${d.slug}`] || '',
       process.env[`DEPT_WHATSAPP_${d.slug}`] || '',
       d.color,
-      idByName[d.parent] || null
+      resolveParentId(d)
     );
   }
   console.log(`[db] seeded ${DEFAULT_DEPARTMENTS.length} departments`);
@@ -698,8 +702,10 @@ app.delete('/api/admin/departments/:id', requireAdmin, (req, res) => {
     const dept = db.prepare('SELECT * FROM departments WHERE id = ?').get(req.params.id);
     if (!dept) return res.status(404).json({ error: 'department not found' });
     // Deleting a parent orphans its children rather than cascading the delete.
-    db.prepare('UPDATE departments SET parent_id = NULL WHERE parent_id = ?').run(dept.id);
-    db.prepare('DELETE FROM departments WHERE id = ?').run(dept.id);
+    db.transaction(() => {
+      db.prepare('UPDATE departments SET parent_id = NULL WHERE parent_id = ?').run(dept.id);
+      db.prepare('DELETE FROM departments WHERE id = ?').run(dept.id);
+    })();
     logAction(dept.id, today(), `department_deleted: ${dept.name}`);
     res.json({ success: true });
   } catch (err) {

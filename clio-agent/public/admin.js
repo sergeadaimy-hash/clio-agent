@@ -297,6 +297,15 @@
     return row;
   }
 
+  // Group departments one level deep. Orphaned parent_id (target missing)
+  // falls back to top-level rendering.
+  function groupByParent(depts) {
+    const ids = new Set(depts.map(d => d.id));
+    const parents = depts.filter(d => !d.parent_id || !ids.has(d.parent_id));
+    const childrenOf = (pid) => depts.filter(d => d.parent_id === pid);
+    return { parents, childrenOf };
+  }
+
   function renderStreams(depts, byDept) {
     const box = $('ov-streams');
     box.innerHTML = '';
@@ -304,10 +313,7 @@
       box.innerHTML = '<p class="panel-note">No departments configured yet.</p>';
       return;
     }
-    const ids = new Set(depts.map(d => d.id));
-    // Orphaned parent_id (target missing) falls back to top-level rendering.
-    const parents = depts.filter(d => !d.parent_id || !ids.has(d.parent_id));
-    const childrenOf = (pid) => depts.filter(d => d.parent_id === pid && ids.has(d.parent_id));
+    const { parents, childrenOf } = groupByParent(depts);
     parents.forEach(p => {
       const kids = childrenOf(p.id);
       if (!kids.length) {
@@ -437,10 +443,7 @@
     list.innerHTML = '';
     if (!depts.length) { list.innerHTML = '<p class="panel-note">No departments yet. Add the first one.</p>'; return; }
 
-    const ids = new Set(depts.map(d => d.id));
-    // Orphaned parent_id (target missing) falls back to top-level rendering.
-    const parents = depts.filter(d => !d.parent_id || !ids.has(d.parent_id));
-    const childrenOf = (pid) => depts.filter(d => d.parent_id === pid && ids.has(d.parent_id));
+    const { parents, childrenOf } = groupByParent(depts);
     parents.forEach(p => {
       list.appendChild(deptRow(p, depts));
       childrenOf(p.id).forEach(c => list.appendChild(deptRow(c, depts, { indent: true })));

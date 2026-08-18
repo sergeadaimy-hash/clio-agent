@@ -42,3 +42,30 @@ CREATE TABLE IF NOT EXISTS settings (
 
 -- Photo captions: JSON map of filename -> caption
 -- Added via ALTER TABLE if column doesn't exist (handled in server.js migration)
+
+CREATE TABLE IF NOT EXISTS whatsapp_threads (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  wa_number TEXT NOT NULL UNIQUE,
+  department_id INTEGER,
+  display_name TEXT,
+  mode TEXT NOT NULL DEFAULT 'agent',
+  unread_count INTEGER NOT NULL DEFAULT 0,
+  last_message_at TEXT,
+  FOREIGN KEY (department_id) REFERENCES departments(id)
+);
+
+CREATE TABLE IF NOT EXISTS whatsapp_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  thread_id INTEGER NOT NULL,
+  direction TEXT NOT NULL,
+  body TEXT,
+  message_type TEXT NOT NULL DEFAULT 'text',
+  template_name TEXT,
+  wa_message_id TEXT,
+  status TEXT,
+  sent_by TEXT,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (thread_id) REFERENCES whatsapp_threads(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_wa_msgs_thread ON whatsapp_messages(thread_id, id);

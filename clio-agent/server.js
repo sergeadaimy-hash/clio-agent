@@ -464,7 +464,18 @@ app.get('/api/submission/:department_id', requirePortal, (req, res) => {
 });
 
 // POST /api/submit
-app.post('/api/submit', upload.array('photos', 20), requirePortal, async (req, res) => {
+// Header-only auth gate that runs BEFORE multer buffers uploads: an
+// unauthenticated request must never stream megabytes into memory.
+function requirePortalHeader(req, res, next) {
+  const pass = req.header('x-admin-password');
+  if (pass && pass === process.env.ADMIN_PASSWORD) { req.portalDeptId = null; return next(); }
+  const id = portalDeptId(req);
+  if (!id) return res.status(401).json({ error: 'login required' });
+  req.portalDeptId = id;
+  next();
+}
+
+app.post('/api/submit', requirePortalHeader, upload.array('photos', 20), async (req, res) => {
   try {
     let {
       department_id,
@@ -646,10 +657,13 @@ function requireAdminOrApiKey(req, res, next) {
 // is also accepted everywhere a portal token is, for testing and support.
 function portalDeptId(req) {
   const token = req.header('x-portal-token');
-  const deptId = portalAuth.verifyToken(token);
-  if (!deptId) return null;
-  const dept = db.prepare('SELECT id FROM departments WHERE id = ?').get(deptId);
-  return dept ? dept.id : null;
+  const full = portalAuth.verifyTokenFull(token);
+  if (!full) return null;
+  const dept = db.prepare('SELECT id, credentials_updated_at FROM departments WHERE id = ?').get(full.deptId);
+  if (!dept) return null;
+  // Token dies when credentials are regenerated or revoked after it was minted.
+  if ((full.credStamp || null) !== (dept.credentials_updated_at || null)) return null;
+  return dept.id;
 }
 function isAdminReq(req) {
   const pass = req.body?.password || req.query?.password || req.header('x-admin-password');
@@ -691,11 +705,14 @@ app.post('/api/portal/login', portalLoginRateLimit, async (req, res) => {
     const dept = username
       ? db.prepare('SELECT * FROM departments WHERE username = ?').get(username)
       : null;
-    if (!dept || !portalAuth.verifyPassword(password, dept.password_hash)) {
+    const valid = dept
+      ? portalAuth.verifyPassword(password, dept.password_hash)
+      : portalAuth.burnVerify(password);
+    if (!valid) {
       await new Promise(r => setTimeout(r, 300));
       return res.status(401).json({ error: 'invalid credentials' });
     }
-    res.json({ token: portalAuth.makeToken(dept.id), department: { id: dept.id, name: dept.name } });
+    res.json({ token: portalAuth.makeToken(dept.id, dept.credentials_updated_at || null), department: { id: dept.id, name: dept.name } });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

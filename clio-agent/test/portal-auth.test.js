@@ -6,7 +6,8 @@ const {
   verifyPassword,
   generatePassword,
   makeToken,
-  verifyToken
+  verifyToken,
+  verifyTokenFull
 } = require('../portal-auth');
 
 test('hashPassword/verifyPassword: roundtrip succeeds and wrong password is rejected', () => {
@@ -39,6 +40,15 @@ test('verifyToken: rejects a tampered token', () => {
 });
 
 test('verifyToken: rejects an expired token', () => {
-  const token = makeToken(42, -1000);
+  const token = makeToken(42, null, -1000);
   assert.strictEqual(verifyToken(token), null);
+});
+
+test('verifyTokenFull: carries the credential stamp for server-side matching', () => {
+  const token = makeToken(7, '2026-08-18 15:00:00');
+  const full = verifyTokenFull(token);
+  assert.strictEqual(full.deptId, 7);
+  assert.strictEqual(full.credStamp, '2026-08-18 15:00:00');
+  const legacy = makeToken(7);
+  assert.strictEqual(verifyTokenFull(legacy).credStamp, null);
 });

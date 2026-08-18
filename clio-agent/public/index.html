@@ -4,139 +4,156 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0F172A" />
-  <title>CLIO: Daily Report Portal</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230F172A'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%233B82F6'/%3E%3C/svg%3E" />
+  <title>Daily Report Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div class="app">
 
-    <!-- SCREEN 1: department selection -->
+    <!-- SCREEN 1: department select -->
     <section id="screen-select" class="screen active">
-      <div class="brand">
-        <img id="brand-logo" alt="" class="brand-logo-img" style="display:none" />
-        <div id="brand-wordmark" class="brand-product">CLIO</div>
-        <div class="brand-tag">Daily Report Portal</div>
-        <div class="brand-divider"></div>
+      <div class="portal-logo" id="portal-logo" hidden>
+        <img id="brand-logo" alt="Event logo" />
       </div>
-      <div class="event-name" id="event-name"></div>
-      <div class="date-line" id="date-line"></div>
-      <div class="status-bar">
-        <div class="status-bar-top">
-          <div class="status-bar-count"><span id="sub-count">0</span> of <span id="sub-total">7</span> departments have submitted today</div>
+      <header class="event-head rise">
+        <span class="ev-label">Daily Report</span>
+        <div class="ev-name" id="ev-name">Loading…</div>
+        <div class="ev-meta">
+          <span class="pill" id="pill-date"></span>
+          <span class="pill warn" id="pill-deadline" hidden></span>
         </div>
-        <div class="dots" id="dots"></div>
-      </div>
-      <div class="dept-grid" id="dept-grid"></div>
+      </header>
+      <div class="team-line rise d1" id="team-line"></div>
+      <div class="dept-list rise d2" id="dept-list"></div>
+      <footer class="portal-foot" id="portal-foot" hidden></footer>
     </section>
 
-    <!-- SCREEN 2: already submitted (readonly) -->
+    <!-- SCREEN 2: read-only summary of a submitted report -->
     <section id="screen-readonly" class="screen">
-      <button class="form-back" data-nav="screen-select">← Departments</button>
-      <div class="readonly-banner" id="readonly-banner">
-        <h2 id="ro-dept-name">Department</h2>
-        <p>Already submitted for today. Review below or update your report.</p>
+      <button type="button" class="back-btn" id="ro-back"><span class="chev">&#8249;</span> Departments</button>
+      <div class="ro-head">
+        <div class="ro-dept"><span class="dot" id="ro-dot"></span><span id="ro-dept-name"></span></div>
+        <div class="ro-meta">
+          <span class="pill" id="ro-pill-time"></span>
+          <span class="pill" id="ro-pill-version"></span>
+        </div>
       </div>
 
       <div class="ro-block">
-        <div class="ro-label">Completion</div>
-        <div class="ro-pct" id="ro-pct">0%</div>
+        <div class="ro-label">Progress</div>
+        <div class="ro-progress">
+          <div class="bar"><i id="ro-bar"></i></div>
+          <span class="pct" id="ro-pct">0%</span>
+        </div>
       </div>
       <div class="ro-block">
-        <div class="ro-label">Status</div>
-        <div id="ro-status"></div>
+        <div class="ro-label">Today's status</div>
+        <div class="ro-text" id="ro-status"></div>
       </div>
       <div class="ro-block">
         <div class="ro-label">Highlights</div>
-        <div id="ro-highlights"></div>
+        <div class="ro-text" id="ro-highlights"></div>
       </div>
       <div class="ro-block" id="ro-blockers-wrap">
-        <div class="ro-label" style="color:var(--red)">Blockers</div>
-        <div id="ro-blockers"></div>
+        <div class="ro-label blocked">Blockers</div>
+        <div class="ro-text" id="ro-blockers"></div>
       </div>
-      <div class="ro-block ro-schedule">
-        <div class="ro-label">Today's Schedule</div>
-        <table>
-          <thead><tr><th>Time</th><th>Activity</th><th>Status</th></tr></thead>
-          <tbody id="ro-schedule-body"></tbody>
-        </table>
+      <div class="ro-block" id="ro-schedule-wrap">
+        <div class="ro-label">Schedule updates</div>
+        <div id="ro-schedule"></div>
       </div>
-      <div class="ro-block">
+      <div class="ro-block" id="ro-photos-wrap">
         <div class="ro-label">Photos</div>
-        <div class="thumbs" id="ro-thumbs"></div>
+        <div class="photo-grid" id="ro-photos"></div>
       </div>
 
-      <button class="update-btn" id="update-btn">Update Submission</button>
+      <div class="cta-bar">
+        <button type="button" class="btn-primary" id="ro-edit-btn">Edit my submission</button>
+      </div>
     </section>
 
-    <!-- SCREEN 3: input form -->
+    <!-- SCREEN 3: three-step form -->
     <section id="screen-form" class="screen">
-      <button class="form-back" data-nav="screen-select">← Departments</button>
-      <div class="form-header">
-        <h1 id="form-dept-name">Department</h1>
-        <div class="subdate" id="form-subdate"></div>
+      <button type="button" class="back-btn" id="form-back"><span class="chev">&#8249;</span> <span id="form-back-label">Back</span></button>
+      <div class="stepper" aria-hidden="true">
+        <span class="s" id="step-seg-1"></span>
+        <span class="s" id="step-seg-2"></span>
+        <span class="s" id="step-seg-3"></span>
+      </div>
+      <h1 class="form-title" id="form-title"></h1>
+      <div class="form-sub" id="form-sub"></div>
+      <div class="error-banner" id="form-error"></div>
+
+      <!-- Step 1: Progress -->
+      <div class="step-pane" id="step-1">
+        <div class="progress-block">
+          <div class="big-pct"><span id="big-pct">0</span><small>%</small></div>
+          <input type="range" class="range" id="progress-range" min="0" max="100" step="1" value="0"
+                 aria-label="Overall progress percent" />
+          <div class="slider-scale"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+        </div>
+        <p class="progress-hint">How far along is your department against today's plan?</p>
       </div>
 
-      <form id="submit-form">
-        <input type="hidden" id="department_id" />
-
-        <div class="section">
-          <h2>Overall Status</h2>
-
-          <div class="slider-wrap">
-            <label>Overall Completion</label>
-            <div class="slider-value" id="slider-value">0%</div>
-            <input type="range" id="overall_progress" min="0" max="100" step="1" value="0" />
-          </div>
-
-          <label>Status Summary <span id="status-count" class="char-count" style="display:inline">0/300</span></label>
-          <textarea id="status_text" maxlength="300" required placeholder="One or two sentences describing today's overall state..."></textarea>
-
-          <div style="height:16px"></div>
-
-          <label>Highlights</label>
-          <textarea id="highlights" placeholder="Key wins, completions, milestones hit..."></textarea>
-
-          <div style="height:16px"></div>
-
-          <label class="optional" style="color:var(--red);">Blockers / Issues</label>
-          <textarea id="blockers" placeholder="Anything slowing you down or needing escalation..."></textarea>
+      <!-- Step 2: Notes -->
+      <div class="step-pane" id="step-2">
+        <div class="field">
+          <label for="status_text">Today's status <span class="req">*</span></label>
+          <textarea class="input" id="status_text" rows="3" maxlength="300" required
+                    placeholder="One or two sentences on today's overall state…"></textarea>
         </div>
-
-        <div class="section">
-          <h2>Today's Schedule</h2>
-          <div id="schedule-rows"></div>
-          <button type="button" class="add-row" id="add-row-btn">+ Add Activity</button>
+        <div class="field">
+          <label for="highlights">Highlights <span class="opt">optional</span></label>
+          <textarea class="input" id="highlights" rows="2"
+                    placeholder="Key wins, completions, milestones…"></textarea>
         </div>
-
-        <div class="section">
-          <h2>Progress Photos</h2>
-          <div class="drop" id="drop-zone">
-            Tap to browse or drop photos here<br/>
-            <small>JPG, PNG, HEIC, up to 20 files</small>
-          </div>
-          <input type="file" id="file-input" accept="image/jpeg,image/png,image/heic,image/heif,.jpg,.jpeg,.png,.heic,.heif" multiple hidden />
-          <div class="thumbs" id="preview"></div>
+        <div class="field">
+          <label for="blockers">Blockers <span class="opt">optional</span></label>
+          <textarea class="input" id="blockers" rows="2"
+                    placeholder="Anything blocking you?"></textarea>
         </div>
+        <div class="field">
+          <label>Schedule updates <span class="opt">optional</span></label>
+          <div class="sched-rows" id="sched-rows"></div>
+          <button type="button" class="add-row-btn" id="add-row-btn">+ Add activity</button>
+        </div>
+      </div>
 
-        <button type="submit" class="submit-btn" id="submit-btn">Submit Report</button>
-      </form>
+      <!-- Step 3: Photos -->
+      <div class="step-pane" id="step-3">
+        <p class="photos-help">Add progress photos and describe each one. <b>Captions print under the photos in the report deck.</b></p>
+        <div class="photo-grid" id="photo-grid"></div>
+        <input type="file" id="file-input" accept="image/*" multiple hidden />
+      </div>
+
+      <div class="autosave" id="autosave"></div>
+      <div class="cta-bar">
+        <button type="button" class="btn-primary" id="btn-continue">Continue</button>
+      </div>
     </section>
 
     <!-- SCREEN 4: success -->
     <section id="screen-success" class="screen">
-      <div class="success-wrap">
-        <div class="check">✓</div>
-        <h1>CLIO has received your update.</h1>
-        <p id="success-dept"></p>
-        <div class="success-summary">
-          <div><b id="sum-pct">0%</b>Progress</div>
-          <div><b id="sum-photos">0</b>Photos</div>
-          <div><b id="sum-activities">0</b>Activities</div>
+      <div class="success-center">
+        <div class="check-ring">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
         </div>
-        <a href="#" class="back-link" data-nav="screen-select">Back to departments</a>
+        <h1 id="success-title">Submitted</h1>
+        <p class="success-note" id="success-note">AI polishes your text for the report. You can edit your submission until the report is generated.</p>
+        <div class="receipt">
+          <div class="r-row"><span class="k">Department</span><span class="v" id="r-dept"></span></div>
+          <div class="r-row"><span class="k">Date</span><span class="v" id="r-date"></span></div>
+          <div class="r-row"><span class="k">Progress</span><span class="v" id="r-progress"></span></div>
+          <div class="r-row"><span class="k">Photos</span><span class="v" id="r-photos"></span></div>
+        </div>
+      </div>
+      <div class="cta-bar">
+        <button type="button" class="btn-ghost" id="btn-edit-again">Edit my submission</button>
+        <button type="button" class="btn-ghost" id="btn-done">Back to departments</button>
       </div>
     </section>
 

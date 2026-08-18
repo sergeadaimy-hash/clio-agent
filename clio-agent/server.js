@@ -273,6 +273,7 @@ app.get('/api/status', (req, res) => {
       event_edition: getEventEdition(),
       logo_url: getLogoUrl(),
       brand: getPublicBrand(),
+      report_time: (getScheduleConfig().report_time || '23:00'),
       departments: getStatusList(today())
     });
   } catch (err) {

@@ -1,0 +1,1614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CLIO Admin Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #101820;
+  --bg-2: #0C1219;
+  --accent: #F8FF00;
+  --accent-dim: rgba(248, 255, 0, 0.12);
+  --accent-glow: rgba(248, 255, 0, 0.06);
+  --panel: #151E29;
+  --panel-2: #1A2533;
+  --border: #243040;
+  --border-light: #2E3D50;
+  --text: #E8EBF0;
+  --text-dim: #C0C6CE;
+  --muted: #7B8794;
+  --green: #4ADE80;
+  --green-bg: rgba(74, 222, 128, 0.08);
+  --green-border: rgba(74, 222, 128, 0.2);
+  --amber: #FB923C;
+  --amber-bg: rgba(251, 146, 60, 0.08);
+  --red: #F87171;
+  --red-bg: rgba(248, 113, 113, 0.08);
+  --red-border: rgba(248, 113, 113, 0.2);
+  --radius: 14px;
+  --radius-sm: 8px;
+  --radius-xs: 6px;
+  --shadow: 0 2px 16px rgba(0,0,0,0.3);
+  --shadow-lg: 0 8px 40px rgba(0,0,0,0.5);
+  --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html { font-size: 15px; }
+body {
+  font-family: 'Sora', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-light); }
+
+/* ─── Background Texture ─── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(248, 255, 0, 0.025) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 80% 90%, rgba(248, 255, 0, 0.015) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ─── Login ─── */
+.login-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  transition: opacity 0.5s ease, visibility 0.5s ease;
+}
+.login-overlay.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+
+.login-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 30% 40%, rgba(248, 255, 0, 0.04) 0%, transparent 50%),
+    radial-gradient(circle at 70% 60%, rgba(248, 255, 0, 0.02) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.login-card {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 48px 40px 40px;
+  width: 380px;
+  max-width: 90vw;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+  animation: loginIn 0.6s ease-out;
+}
+@keyframes loginIn {
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.login-card .logo-img {
+  height: 36px;
+  margin-bottom: 20px;
+  opacity: 0.9;
+}
+.login-card .clio-title {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: 6px;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+.login-card .clio-subtitle {
+  font-size: 0.8rem;
+  font-weight: 400;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 32px;
+}
+
+.login-field {
+  position: relative;
+  margin-bottom: 20px;
+}
+.login-field input {
+  width: 100%;
+  padding: 14px 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: 'Sora', sans-serif;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color var(--transition);
+}
+.login-field input:focus { border-color: var(--accent); }
+.login-field input::placeholder { color: var(--muted); }
+
+.demo-flash {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  padding: 8px 24px;
+  border-radius: 100px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+.demo-flash.show {
+  animation: flashPulse 1.2s ease forwards;
+}
+@keyframes flashPulse {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+  20% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.05); }
+}
+
+/* ─── Buttons ─── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  color: var(--text);
+  font-family: 'Sora', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+.btn:hover { background: var(--border); border-color: var(--border-light); }
+.btn:active { transform: scale(0.97); }
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.btn-primary:hover { background: #e5ec00; border-color: #e5ec00; }
+
+.btn-sm { padding: 6px 14px; font-size: 0.75rem; }
+.btn-danger { color: var(--red); border-color: var(--red-border); }
+.btn-danger:hover { background: var(--red-bg); }
+
+.btn-unlock {
+  width: 100%;
+  padding: 14px;
+  font-size: 0.9rem;
+}
+
+/* ─── Dashboard Layout ─── */
+.dashboard { position: relative; z-index: 1; opacity: 0; transition: opacity 0.5s ease 0.3s; }
+.dashboard.visible { opacity: 1; }
+
+.admin-header {
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.header-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 64px;
+}
+.header-logo { height: 24px; opacity: 0.85; }
+.header-titles { flex: 1; }
+.header-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text);
+}
+.header-sub {
+  font-size: 0.65rem;
+  font-weight: 400;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.header-accent {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ─── Tab Bar ─── */
+.tab-bar-wrap {
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 64px;
+  z-index: 99;
+}
+.tab-bar {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.tab-bar::-webkit-scrollbar { display: none; }
+
+.tab-btn {
+  flex-shrink: 0;
+  padding: 14px 20px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-family: 'Sora', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all var(--transition);
+  position: relative;
+}
+.tab-btn:hover { color: var(--text-dim); }
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ─── Main Content ─── */
+.admin-wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 28px 24px 60px;
+}
+
+.tab-panel { display: none; animation: fadeUp 0.3s ease; }
+.tab-panel.active { display: block; }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Cards ─── */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
+}
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.card-desc {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* ─── Forms ─── */
+.form-group { margin-bottom: 18px; }
+.form-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.form-input, .form-select {
+  width: 100%;
+  padding: 11px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  color: var(--text);
+  font-family: 'Sora', sans-serif;
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color var(--transition);
+}
+.form-input:focus, .form-select:focus { border-color: var(--accent); }
+.form-input::placeholder { color: var(--muted); }
+.form-input:disabled { opacity: 0.5; cursor: not-allowed; }
+.form-select { cursor: pointer; }
+.form-select option { background: var(--panel); color: var(--text); }
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.form-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+.form-check input[type="checkbox"] {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border-light);
+  border-radius: 4px;
+  background: var(--bg);
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: all var(--transition);
+}
+.form-check input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.form-check input[type="checkbox"]:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--bg);
+}
+
+.toggle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+.toggle-track {
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--border);
+  position: relative;
+  transition: background var(--transition);
+  flex-shrink: 0;
+}
+.toggle-track.on { background: var(--accent); }
+.toggle-track .toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--text);
+  transition: transform var(--transition);
+}
+.toggle-track.on .toggle-thumb { transform: translateX(20px); background: var(--bg); }
+.toggle-label { font-size: 0.82rem; color: var(--text-dim); }
+
+/* ─── Tables ─── */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th {
+  text-align: left;
+  padding: 10px 14px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+td {
+  padding: 12px 14px;
+  font-size: 0.82rem;
+  border-bottom: 1px solid rgba(36, 48, 64, 0.5);
+  vertical-align: middle;
+}
+tr.submitted { background: var(--green-bg); }
+tr.not-submitted { background: var(--red-bg); }
+
+.color-bar {
+  width: 4px;
+  height: 28px;
+  border-radius: 2px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 10px;
+}
+.status-check { color: var(--green); font-weight: 700; }
+.status-cross { color: var(--red); font-weight: 600; }
+.progress-bar {
+  width: 60px;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.6s ease;
+}
+
+/* ─── Event Info Line ─── */
+.event-info-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-bottom: 24px;
+  padding: 12px 16px;
+  background: var(--accent-glow);
+  border: 1px solid rgba(248, 255, 0, 0.08);
+  border-radius: var(--radius-sm);
+}
+.event-info-line strong { color: var(--text); font-weight: 600; }
+.event-info-line .sep { color: var(--border-light); }
+
+/* ─── Action Bar ─── */
+.action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 24px;
+  align-items: center;
+}
+
+/* ─── Logs ─── */
+.log-entry {
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  font-family: 'Sora', monospace;
+  color: var(--muted);
+  border-left: 2px solid var(--border);
+  margin-bottom: 4px;
+  transition: border-color var(--transition);
+}
+.log-entry:hover { border-color: var(--accent); color: var(--text-dim); }
+.log-time { color: var(--text-dim); margin-right: 8px; }
+.log-dept { color: var(--accent); font-weight: 600; margin-right: 8px; }
+
+/* ─── Color Picker Grid ─── */
+.color-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.color-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+}
+.color-item label {
+  flex: 1;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+.color-swatch-wrap { display: flex; align-items: center; gap: 8px; }
+.color-swatch-wrap input[type="color"] {
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+.color-swatch-wrap input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+.color-swatch-wrap input[type="color"]::-webkit-color-swatch { border-radius: 3px; border: none; }
+.color-hex {
+  font-size: 0.72rem;
+  font-weight: 500;
+  font-family: 'Sora', monospace;
+  color: var(--muted);
+  min-width: 60px;
+}
+
+/* ─── Logo Preview ─── */
+.logo-preview {
+  width: 100%;
+  max-width: 280px;
+  height: 80px;
+  background: var(--bg);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.logo-preview img { max-height: 50px; max-width: 80%; object-fit: contain; }
+
+/* ─── Slide Cards ─── */
+.slide-card {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 18px 20px;
+  margin-bottom: 10px;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  transition: opacity var(--transition), transform 0.3s ease;
+}
+.slide-card.disabled { opacity: 0.4; }
+.slide-card.moving { transform: scale(0.98); box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+
+.slide-arrows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.arrow-btn {
+  width: 26px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.7rem;
+  transition: all var(--transition);
+}
+.arrow-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+.slide-toggle { flex-shrink: 0; margin-top: 2px; }
+.slide-body { flex: 1; min-width: 0; }
+.slide-name { font-size: 0.88rem; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.slide-desc { font-size: 0.75rem; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
+.slide-options { display: flex; flex-wrap: wrap; gap: 16px; }
+.slide-options .form-check { font-size: 0.78rem; }
+
+.slide-num {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--bg);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* ─── Email Chips ─── */
+.chip-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: var(--accent-dim);
+  border: 1px solid rgba(248, 255, 0, 0.15);
+  border-radius: 100px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--accent);
+}
+.chip-x {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(248, 255, 0, 0.15);
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 0.65rem;
+  transition: background var(--transition);
+}
+.chip-x:hover { background: rgba(248, 255, 0, 0.3); }
+
+.chip-add {
+  display: flex;
+  gap: 8px;
+}
+.chip-add input { flex: 1; }
+
+/* ─── Archive ─── */
+.date-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+.date-chip {
+  padding: 8px 16px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.date-chip:hover { border-color: var(--accent); color: var(--accent); }
+.date-chip.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.date-chip .count {
+  display: inline-block;
+  background: var(--border);
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  margin-left: 6px;
+}
+.date-chip.active .count { background: rgba(248, 255, 0, 0.2); color: var(--accent); }
+
+.archive-dept-card {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.archive-dept-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.archive-dept-header:hover { background: rgba(255,255,255,0.02); }
+.archive-dept-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.archive-dept-name { font-weight: 600; font-size: 0.85rem; flex: 1; }
+.archive-dept-meta { display: flex; gap: 16px; font-size: 0.75rem; color: var(--muted); }
+.archive-dept-body {
+  display: none;
+  padding: 0 18px 18px;
+  border-top: 1px solid var(--border);
+}
+.archive-dept-body.open { display: block; }
+.archive-json {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 14px;
+  font-family: 'Sora', monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  margin-top: 12px;
+}
+.archive-photos {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+.photo-placeholder {
+  aspect-ratio: 4/3;
+  background: var(--bg);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+/* ─── Modal ─── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+.modal-overlay.open { opacity: 1; visibility: visible; }
+
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px;
+  width: 440px;
+  max-width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+  transform: translateY(16px) scale(0.97);
+  transition: transform 0.25s ease;
+}
+.modal-overlay.open .modal { transform: translateY(0) scale(1); }
+.modal-title { font-size: 1rem; font-weight: 700; margin-bottom: 24px; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+
+/* ─── Save Flash ─── */
+.save-flash {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--green);
+  font-size: 0.8rem;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  margin-left: 12px;
+}
+.save-flash.show { opacity: 1; }
+
+/* ─── Color Dot inline ─── */
+.dept-color-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 768px) {
+  .admin-wrap { padding: 20px 16px 40px; }
+  .card { padding: 20px 16px; }
+  .form-row { grid-template-columns: 1fr; }
+  .color-grid { grid-template-columns: 1fr; }
+  .action-bar { gap: 8px; }
+  .tab-btn { padding: 12px 14px; font-size: 0.72rem; }
+  .header-inner { padding: 0; }
+  .archive-photos { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════ LOGIN ═══════ -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-card">
+    <img src="assets/logo.png" alt="STAMiNA" class="logo-img">
+    <div class="clio-title">CLIO</div>
+    <div class="clio-subtitle">Admin Panel</div>
+    <div class="login-field">
+      <input type="password" id="loginPwd" placeholder="Enter password" autocomplete="off">
+    </div>
+    <button class="btn btn-primary btn-unlock" onclick="doLogin()">Unlock</button>
+    <div class="demo-flash" id="demoFlash">Demo Mode</div>
+  </div>
+</div>
+
+<!-- ═══════ DASHBOARD ═══════ -->
+<div class="dashboard" id="dashboard">
+  <header class="admin-header">
+    <div class="header-inner">
+      <img src="assets/logo.png" alt="STAMiNA" class="header-logo">
+      <div class="header-titles">
+        <div class="header-title">CLIO Admin Panel</div>
+        <div class="header-sub">Event Operations Dashboard</div>
+      </div>
+      <div class="header-accent"></div>
+    </div>
+  </header>
+
+  <div class="tab-bar-wrap">
+    <nav class="tab-bar" id="tabBar">
+      <button class="tab-btn active" data-tab="overview">Overview</button>
+      <button class="tab-btn" data-tab="project">Project</button>
+      <button class="tab-btn" data-tab="departments">Departments</button>
+      <button class="tab-btn" data-tab="brand">Brand</button>
+      <button class="tab-btn" data-tab="report">Report</button>
+      <button class="tab-btn" data-tab="delivery">Delivery</button>
+      <button class="tab-btn" data-tab="schedule">Schedule</button>
+      <button class="tab-btn" data-tab="archive">Archive</button>
+    </nav>
+  </div>
+
+  <main class="admin-wrap">
+
+    <!-- ─── TAB: Overview ─── -->
+    <div class="tab-panel active" id="panel-overview">
+      <div class="event-info-line">
+        <strong>Riyadh Season 2026</strong>
+        <span class="sep">/</span>
+        <span>Build Phase</span>
+        <span class="sep">/</span>
+        <span>2026-04-16</span>
+      </div>
+
+      <div class="action-bar">
+        <button class="btn btn-primary" onclick="flashAlert('Report generation started. This may take a moment.')">Generate Report Now</button>
+        <button class="btn" onclick="flashAlert('Reminders sent to 3 departments with pending submissions.')">Send Reminders Now</button>
+        <input type="date" class="form-input" style="width: 160px; padding: 8px 12px;" value="2026-04-16">
+        <button class="btn" onclick="flashAlert('Historical report for selected date will be generated.')">Generate Historical</button>
+        <button class="btn" onclick="flashAlert('Downloading today\'s report...')">Download Today's Report</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Submission Status</div>
+          <div style="font-size: 0.78rem; color: var(--muted);">4 of 7 submitted</div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Department</th>
+                <th>HOD</th>
+                <th>Submitted</th>
+                <th>Time</th>
+                <th>Progress</th>
+                <th>Photos</th>
+              </tr>
+            </thead>
+            <tbody id="overviewTable"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Recent Logs</div>
+        </div>
+        <div id="logEntries">
+          <div class="log-entry"><span class="log-time">2026-04-16 20:05</span><span class="log-dept">RIGGING</span>Submission received</div>
+          <div class="log-entry"><span class="log-time">2026-04-16 19:15</span><span class="log-dept">LIGHTING</span>Submission received</div>
+          <div class="log-entry"><span class="log-time">2026-04-16 18:42</span><span class="log-dept">STAGE</span>Submission received</div>
+          <div class="log-entry"><span class="log-time">2026-04-16 17:30</span><span class="log-dept">AV</span>Submission received</div>
+          <div class="log-entry"><span class="log-time">2026-04-16 12:00</span><span class="log-dept">SYSTEM</span>Daily reminders sent to all departments</div>
+          <div class="log-entry"><span class="log-time">2026-04-15 23:02</span><span class="log-dept">SYSTEM</span>Daily report generated and emailed to PM team</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── TAB: Project ─── -->
+    <div class="tab-panel" id="panel-project">
+      <div class="card">
+        <div class="card-title" style="margin-bottom: 24px;">Event Configuration</div>
+        <div class="form-group">
+          <label class="form-label">Event Name</label>
+          <input class="form-input" value="Riyadh Season 2026">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Event Edition / Phase</label>
+          <input class="form-input" value="Build Phase">
+        </div>
+        <div style="display: flex; align-items: center;">
+          <button class="btn btn-primary" onclick="flashSave(this)">Save Settings</button>
+          <span class="save-flash">Saved</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── TAB: Departments ─── -->
+    <div class="tab-panel" id="panel-departments">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Manage Departments</div>
+          <button class="btn btn-primary btn-sm" onclick="openDeptModal()">+ Add Department</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Color</th>
+                <th>Name</th>
+                <th>HOD Name</th>
+                <th>Email</th>
+                <th>WhatsApp</th>
+                <th style="text-align:right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="deptTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── TAB: Brand ─── -->
+    <div class="tab-panel" id="panel-brand">
+      <div class="card">
+        <div class="card-title" style="margin-bottom: 24px;">Brand Guidelines</div>
+
+        <div class="form-group">
+          <label class="form-label">Logo</label>
+          <div class="logo-preview">
+            <img src="assets/logo.png" alt="Logo">
+          </div>
+          <button class="btn btn-sm" onclick="flashAlert('File picker would open here.')">Choose File</button>
+        </div>
+
+        <div class="form-row" style="margin-bottom: 18px;">
+          <div class="form-group">
+            <label class="form-label">Company Name</label>
+            <input class="form-input" value="STAMiNA">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Company Subtitle</label>
+            <input class="form-input" value="Be In The Moment">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Font Name</label>
+          <input class="form-input" value="Calibri">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Report Colors</label>
+          <div class="color-grid" id="brandColors"></div>
+        </div>
+
+        <div style="display: flex; align-items: center; margin-top: 8px;">
+          <button class="btn btn-primary" onclick="flashSave(this)">Save Brand Settings</button>
+          <span class="save-flash">Saved</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── TAB: Report ─── -->
+    <div class="tab-panel" id="panel-report">
+      <div class="card">
+        <div class="card-title" style="margin-bottom: 24px;">Report Structure</div>
+
+        <div class="form-group">
+          <label class="form-label">Slide Dimensions</label>
+          <select class="form-select" style="max-width: 280px;">
+            <option selected>16:9 Widescreen</option>
+            <option>4:3 Standard</option>
+          </select>
+        </div>
+
+        <label class="form-label">Slide Types</label>
+        <div id="slideList"></div>
+
+        <div style="display: flex; align-items: center; margin-top: 16px;">
+          <button class="btn btn-primary" onclick="flashSave(this)">Save Report Settings</button>
+          <span class="save-flash">Saved</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── TAB: Delivery ─── -->
+    <div class="tab-panel" id="panel-delivery">
+      <div class="card">
+        <div class="card-title" style="margin-bottom: 20px;">PM Team Emails</div>
+        <div class="chip-container" id="emailChips"></div>
+        <div class="chip-add">
+          <input class="form-input" id="newEmailInput" placeholder="email@example.com" style="max-width: 300px;">
+          <button class="btn btn-sm" onclick="addEmailChip()">+ Add</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom: 20px;">Sender Configuration</div>
+        <div class="form-group">
+          <label class="form-label">Sender Display Name</label>
+          <input class="form-input" value="CLIO Reports" style="max-width: 300px;">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Auto-Email on Report Generation</label>
+          <div class="toggle-wrap" onclick="toggleSwitch(this)">
+            <div class="toggle-track on"><div class="toggle-thumb"></div></div>
+            <span class="toggle-label">Automatically email report to PM team when generated</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom: 20px;">AI Content Review</div>
+        <div class="form-group">
+          <label class="form-label">Anthropic API Key</label>
+          <input type="password" class="form-input" value="sk-ant-xxxxxxxxxxxxxxxxxxxxx" style="max-width: 400px;">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom: 20px;">Cloud / Storage</div>
+        <div class="form-group">
+          <label class="form-label">Data Archive Location</label>
+          <input class="form-input" value="/mnt/shared/clio-archive" style="max-width: 400px;">
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center;">
+        <button class="btn btn-primary" onclick="flashSave(this)">Save Delivery Settings</button>
+        <span class="save-flash">Saved</span>
+      </div>
+    </div>
+
+    <!-- ─── TAB: Schedule ─── -->
+    <div class="tab-panel" id="panel-schedule">
+      <div class="card">
+        <div class="card-title" style="margin-bottom: 24px;">Timing Configuration</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Reminder Time</label>
+            <input type="time" class="form-input" value="21:00">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Report Generation Time</label>
+            <input type="time" class="form-input" value="23:00">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Submission Deadline (Display Text)</label>
+            <input class="form-input" value="11:00 PM">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Timezone</label>
+            <input class="form-input" value="Asia/Riyadh" disabled>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; margin-top: 8px;">
+          <button class="btn btn-primary" onclick="flashSave(this)">Save Schedule</button>
+          <span class="save-flash">Saved</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── TAB: Archive ─── -->
+    <div class="tab-panel" id="panel-archive">
+      <div class="card">
+        <div class="card-title" style="margin-bottom: 20px;">Data Archive Browser</div>
+        <div style="display: flex; gap: 10px; margin-bottom: 24px; align-items: center;">
+          <input type="date" class="form-input" style="width: 170px; padding: 8px 12px;" value="2026-04-16">
+          <button class="btn btn-sm" onclick="flashAlert('Loading archive for selected date...')">Load Date</button>
+        </div>
+
+        <label class="form-label">Available Dates</label>
+        <div class="date-chips" id="dateChips"></div>
+
+        <div id="archiveContent"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ═══════ MODAL ═══════ -->
+<div class="modal-overlay" id="deptModal">
+  <div class="modal">
+    <div class="modal-title" id="deptModalTitle">Add Department</div>
+    <div class="form-group">
+      <label class="form-label">Department Name</label>
+      <input class="form-input" id="mdName" placeholder="e.g. STAGE">
+    </div>
+    <div class="form-group">
+      <label class="form-label">HOD Name</label>
+      <input class="form-input" id="mdHod" placeholder="Full name">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Email</label>
+      <input class="form-input" id="mdEmail" placeholder="hod@stamina.sa">
+    </div>
+    <div class="form-group">
+      <label class="form-label">WhatsApp</label>
+      <input class="form-input" id="mdWhatsapp" placeholder="+966 5X XXX XXXX">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Stream Color</label>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <input type="color" id="mdColor" value="#FF6B6B" style="width: 48px; height: 40px; border: 2px solid var(--border); border-radius: 8px; background: none; cursor: pointer; padding: 0;">
+        <span class="color-hex" id="mdColorHex">#FF6B6B</span>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeDeptModal()">Cancel</button>
+      <button class="btn btn-primary" id="mdSaveBtn" onclick="saveDept()">Add Department</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════
+
+let departments = [
+  { id: 1, name: 'STAGE', hod: 'Ahmed Al-Rashid', email: 'ahmed.rashid@stamina.sa', whatsapp: '+966 50 123 4567', color: '#FF6B6B' },
+  { id: 2, name: 'LIGHTING', hod: 'Sarah Chen', email: 'sarah.chen@stamina.sa', whatsapp: '+966 55 234 5678', color: '#4ECDC4' },
+  { id: 3, name: 'AV', hod: 'Omar Hassan', email: 'omar.hassan@stamina.sa', whatsapp: '+966 54 345 6789', color: '#45B7D1' },
+  { id: 4, name: 'SCENIC', hod: 'Maria Santos', email: 'maria.santos@stamina.sa', whatsapp: '+966 56 456 7890', color: '#96CEB4' },
+  { id: 5, name: 'RIGGING', hod: 'David Kim', email: 'david.kim@stamina.sa', whatsapp: '+966 59 567 8901', color: '#FFEAA7' },
+  { id: 6, name: 'SHOW DIRECTION', hod: 'James Wilson', email: 'james.wilson@stamina.sa', whatsapp: '+966 53 678 9012', color: '#DDA0DD' },
+  { id: 7, name: 'LOGISTICS', hod: 'Fatima Al-Zahra', email: 'fatima.zahra@stamina.sa', whatsapp: '+966 58 789 0123', color: '#98D8C8' }
+];
+
+const submissions = [
+  { deptId: 1, submitted: true, time: '18:42', progress: 85, photos: 3 },
+  { deptId: 2, submitted: true, time: '19:15', progress: 72, photos: 5 },
+  { deptId: 3, submitted: true, time: '17:30', progress: 90, photos: 4 },
+  { deptId: 5, submitted: true, time: '20:05', progress: 60, photos: 2 },
+  { deptId: 4, submitted: false },
+  { deptId: 6, submitted: false },
+  { deptId: 7, submitted: false }
+];
+
+let pmEmails = ['pm@stamina.sa', 'ahmed.pm@stamina.sa', 'sarah.ops@stamina.sa'];
+
+let slideTypes = [
+  { id: 'master', name: 'Master Overview', desc: 'Event summary with all departments, progress grid, and overall average.', enabled: true, options: [{ label: 'Show overall average', checked: true }, { label: 'Show status badges', checked: true }] },
+  { id: 'dept', name: 'Department Overview', desc: 'Per-department slide: progress %, status summary, highlights, and blockers.', enabled: true, options: [{ label: 'Show highlights', checked: true }, { label: 'Show blockers', checked: true }] },
+  { id: 'schedule', name: 'Schedule & Chart', desc: 'Per-department schedule table with activity status and a donut chart.', enabled: true, options: [{ label: 'Show donut chart', checked: true }] },
+  { id: 'photos', name: 'Photo Wall', desc: 'Grid of progress photos uploaded by the HOD.', enabled: true, options: [{ label: 'Show timestamps', checked: true }], dropdown: { label: 'Photos per page', values: [4, 6, 9], selected: 6 } },
+  { id: 'nosub', name: 'No Submission Notice', desc: 'Placeholder slide for departments that did not submit.', enabled: true, options: [] }
+];
+
+const brandColorDefs = [
+  { label: 'Background', key: 'bg', value: '#101820' },
+  { label: 'Primary / Accent', key: 'primary', value: '#F8FF00' },
+  { label: 'Text', key: 'text', value: '#E8EBF0' },
+  { label: 'Muted / Secondary', key: 'muted', value: '#6B7280' },
+  { label: 'Panel / Card', key: 'panel', value: '#151E29' }
+];
+
+const archiveDates = [
+  { date: '2026-04-16', count: 4, depts: [1, 2, 3, 5] },
+  { date: '2026-04-15', count: 6, depts: [1, 2, 3, 4, 5, 7] },
+  { date: '2026-04-14', count: 5, depts: [1, 2, 3, 5, 6] }
+];
+
+let nextDeptId = 8;
+let editingDeptId = null;
+
+// ═══════════════════════════════════════
+// LOGIN
+// ═══════════════════════════════════════
+
+document.getElementById('loginPwd').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+function doLogin() {
+  const flash = document.getElementById('demoFlash');
+  flash.classList.add('show');
+  setTimeout(() => {
+    document.getElementById('loginOverlay').classList.add('hidden');
+    document.getElementById('dashboard').classList.add('visible');
+  }, 1000);
+}
+
+// ═══════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ═══════════════════════════════════════
+// OVERVIEW TABLE
+// ═══════════════════════════════════════
+
+function renderOverview() {
+  const tbody = document.getElementById('overviewTable');
+  tbody.innerHTML = submissions.map(s => {
+    const dept = departments.find(d => d.id === s.deptId);
+    if (!dept) return '';
+    const rowClass = s.submitted ? 'submitted' : 'not-submitted';
+    const check = s.submitted
+      ? `<span class="status-check">&#10003;</span>`
+      : `<span class="status-cross">&#10007;</span>`;
+    const time = s.submitted ? s.time : '<span style="color:var(--muted)">--</span>';
+    const progress = s.submitted
+      ? `<div class="progress-bar"><div class="progress-fill" style="width:${s.progress}%;background:${dept.color}"></div></div>${s.progress}%`
+      : '<span style="color:var(--muted)">--</span>';
+    const photos = s.submitted ? s.photos : '<span style="color:var(--muted)">--</span>';
+    return `<tr class="${rowClass}">
+      <td><span class="color-bar" style="background:${dept.color}"></span>${dept.name}</td>
+      <td>${dept.hod}</td>
+      <td>${check}</td>
+      <td>${time}</td>
+      <td>${progress}</td>
+      <td>${photos}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════
+// DEPARTMENTS TABLE
+// ═══════════════════════════════════════
+
+function renderDeptTable() {
+  const tbody = document.getElementById('deptTable');
+  tbody.innerHTML = departments.map(d => `
+    <tr>
+      <td><span class="dept-color-dot" style="background:${d.color}"></span></td>
+      <td style="font-weight:600">${d.name}</td>
+      <td>${d.hod}</td>
+      <td style="font-size:0.78rem;color:var(--muted)">${d.email}</td>
+      <td style="font-size:0.78rem;color:var(--muted)">${d.whatsapp}</td>
+      <td style="text-align:right; white-space:nowrap;">
+        <button class="btn btn-sm" onclick="editDept(${d.id})">Edit</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteDept(${d.id})">Delete</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function openDeptModal(id) {
+  editingDeptId = id || null;
+  const modal = document.getElementById('deptModal');
+  const title = document.getElementById('deptModalTitle');
+  const saveBtn = document.getElementById('mdSaveBtn');
+
+  if (id) {
+    const d = departments.find(x => x.id === id);
+    title.textContent = 'Edit Department';
+    saveBtn.textContent = 'Save Changes';
+    document.getElementById('mdName').value = d.name;
+    document.getElementById('mdHod').value = d.hod;
+    document.getElementById('mdEmail').value = d.email;
+    document.getElementById('mdWhatsapp').value = d.whatsapp;
+    document.getElementById('mdColor').value = d.color;
+    document.getElementById('mdColorHex').textContent = d.color;
+  } else {
+    title.textContent = 'Add Department';
+    saveBtn.textContent = 'Add Department';
+    document.getElementById('mdName').value = '';
+    document.getElementById('mdHod').value = '';
+    document.getElementById('mdEmail').value = '';
+    document.getElementById('mdWhatsapp').value = '';
+    document.getElementById('mdColor').value = '#FF6B6B';
+    document.getElementById('mdColorHex').textContent = '#FF6B6B';
+  }
+  modal.classList.add('open');
+}
+
+function editDept(id) { openDeptModal(id); }
+
+function closeDeptModal() {
+  document.getElementById('deptModal').classList.remove('open');
+  editingDeptId = null;
+}
+
+function saveDept() {
+  const name = document.getElementById('mdName').value.trim().toUpperCase();
+  const hod = document.getElementById('mdHod').value.trim();
+  const email = document.getElementById('mdEmail').value.trim();
+  const whatsapp = document.getElementById('mdWhatsapp').value.trim();
+  const color = document.getElementById('mdColor').value;
+
+  if (!name || !hod) { flashAlert('Name and HOD are required.'); return; }
+
+  if (editingDeptId) {
+    const d = departments.find(x => x.id === editingDeptId);
+    Object.assign(d, { name, hod, email, whatsapp, color });
+  } else {
+    departments.push({ id: nextDeptId++, name, hod, email, whatsapp, color });
+  }
+  closeDeptModal();
+  renderDeptTable();
+  renderOverview();
+}
+
+function deleteDept(id) {
+  const d = departments.find(x => x.id === id);
+  if (!confirm(`Delete department "${d.name}"? This cannot be undone.`)) return;
+  departments = departments.filter(x => x.id !== id);
+  renderDeptTable();
+  renderOverview();
+}
+
+document.getElementById('mdColor').addEventListener('input', e => {
+  document.getElementById('mdColorHex').textContent = e.target.value.toUpperCase();
+});
+
+document.getElementById('deptModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeDeptModal();
+});
+
+// ═══════════════════════════════════════
+// BRAND COLORS
+// ═══════════════════════════════════════
+
+function renderBrandColors() {
+  const grid = document.getElementById('brandColors');
+  grid.innerHTML = brandColorDefs.map(c => `
+    <div class="color-item">
+      <label>${c.label}</label>
+      <div class="color-swatch-wrap">
+        <input type="color" value="${c.value}" data-key="${c.key}" onchange="updateColorHex(this)">
+        <span class="color-hex">${c.value.toUpperCase()}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function updateColorHex(input) {
+  input.nextElementSibling.textContent = input.value.toUpperCase();
+}
+
+// ═══════════════════════════════════════
+// SLIDE TYPES
+// ═══════════════════════════════════════
+
+function renderSlides() {
+  const list = document.getElementById('slideList');
+  list.innerHTML = slideTypes.map((s, i) => {
+    const optsHtml = s.options.map((o, oi) => `
+      <label class="form-check">
+        <input type="checkbox" ${o.checked ? 'checked' : ''} onchange="slideTypes[${i}].options[${oi}].checked=this.checked">
+        ${o.label}
+      </label>
+    `).join('');
+
+    const dropdownHtml = s.dropdown ? `
+      <label class="form-check" style="gap:8px;">
+        ${s.dropdown.label}:
+        <select class="form-select" style="width:auto;padding:4px 10px;font-size:0.75rem;" onchange="slideTypes[${i}].dropdown.selected=+this.value">
+          ${s.dropdown.values.map(v => `<option value="${v}" ${v === s.dropdown.selected ? 'selected' : ''}>${v}</option>`).join('')}
+        </select>
+      </label>
+    ` : '';
+
+    return `
+      <div class="slide-card ${s.enabled ? '' : 'disabled'}" data-idx="${i}">
+        <span class="slide-num">${i + 1}</span>
+        <div class="slide-arrows">
+          <button class="arrow-btn" onclick="moveSlide(${i},-1)" ${i === 0 ? 'disabled style="opacity:0.3;pointer-events:none"' : ''}>&#9650;</button>
+          <button class="arrow-btn" onclick="moveSlide(${i},1)" ${i === slideTypes.length - 1 ? 'disabled style="opacity:0.3;pointer-events:none"' : ''}>&#9660;</button>
+        </div>
+        <div class="slide-toggle">
+          <label class="form-check" style="margin:0">
+            <input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="toggleSlide(${i},this.checked)">
+          </label>
+        </div>
+        <div class="slide-body">
+          <div class="slide-name">${s.name}</div>
+          <div class="slide-desc">${s.desc}</div>
+          <div class="slide-options">${optsHtml}${dropdownHtml}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function moveSlide(idx, dir) {
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= slideTypes.length) return;
+  [slideTypes[idx], slideTypes[newIdx]] = [slideTypes[newIdx], slideTypes[idx]];
+  renderSlides();
+}
+
+function toggleSlide(idx, enabled) {
+  slideTypes[idx].enabled = enabled;
+  renderSlides();
+}
+
+// ═══════════════════════════════════════
+// EMAIL CHIPS
+// ═══════════════════════════════════════
+
+function renderEmailChips() {
+  const container = document.getElementById('emailChips');
+  container.innerHTML = pmEmails.map((e, i) => `
+    <div class="chip">
+      ${e}
+      <span class="chip-x" onclick="removeEmail(${i})">&#10005;</span>
+    </div>
+  `).join('');
+}
+
+function removeEmail(i) {
+  pmEmails.splice(i, 1);
+  renderEmailChips();
+}
+
+function addEmailChip() {
+  const input = document.getElementById('newEmailInput');
+  const val = input.value.trim();
+  if (!val || !val.includes('@')) { flashAlert('Please enter a valid email address.'); return; }
+  if (pmEmails.includes(val)) { flashAlert('Email already added.'); return; }
+  pmEmails.push(val);
+  input.value = '';
+  renderEmailChips();
+}
+
+document.getElementById('newEmailInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addEmailChip();
+});
+
+// ═══════════════════════════════════════
+// ARCHIVE
+// ═══════════════════════════════════════
+
+function renderArchive() {
+  const chips = document.getElementById('dateChips');
+  chips.innerHTML = archiveDates.map(d => `
+    <button class="date-chip" data-date="${d.date}" onclick="loadArchiveDate('${d.date}')">
+      ${d.date}<span class="count">${d.count}</span>
+    </button>
+  `).join('');
+}
+
+function loadArchiveDate(date) {
+  document.querySelectorAll('.date-chip').forEach(c => c.classList.toggle('active', c.dataset.date === date));
+  const ad = archiveDates.find(d => d.date === date);
+  const container = document.getElementById('archiveContent');
+
+  container.innerHTML = ad.depts.map(deptId => {
+    const dept = departments.find(d => d.id === deptId);
+    if (!dept) return '';
+    const sub = submissions.find(s => s.deptId === deptId);
+    const isSub = sub && sub.submitted;
+    const progress = isSub ? sub.progress : null;
+    const time = isSub ? sub.time : null;
+    const photos = isSub ? sub.photos : 0;
+
+    const photoBoxes = Array.from({ length: photos }, (_, i) =>
+      `<div class="photo-placeholder">IMG_${String(i + 1).padStart(3, '0')}.jpg</div>`
+    ).join('');
+
+    const jsonData = isSub ? JSON.stringify({
+      department: dept.name,
+      date: date,
+      submitted_by: dept.hod,
+      submitted_at: `${date}T${time}:00+03:00`,
+      progress_pct: progress,
+      status: progress >= 80 ? 'On Track' : progress >= 60 ? 'Needs Attention' : 'At Risk',
+      highlights: ['Main structure assembly completed', 'Cabling 70% done'],
+      blockers: progress < 80 ? ['Waiting on equipment delivery'] : [],
+      photos_count: photos
+    }, null, 2) : JSON.stringify({ department: dept.name, date: date, submitted: false }, null, 2);
+
+    return `
+      <div class="archive-dept-card">
+        <div class="archive-dept-header" onclick="this.nextElementSibling.classList.toggle('open')">
+          <span class="archive-dept-dot" style="background:${dept.color}"></span>
+          <span class="archive-dept-name">${dept.name}</span>
+          <div class="archive-dept-meta">
+            ${isSub ? `<span style="color:var(--green)">&#10003; Submitted</span>` : `<span style="color:var(--red)">&#10007; Missing</span>`}
+            ${progress !== null ? `<span>${progress}%</span>` : ''}
+            ${time ? `<span>${time}</span>` : ''}
+            ${photos ? `<span>${photos} photos</span>` : ''}
+          </div>
+        </div>
+        <div class="archive-dept-body">
+          ${photos ? `<label class="form-label" style="margin-top:12px">Photos</label><div class="archive-photos">${photoBoxes}</div>` : ''}
+          <label class="form-label" style="margin-top:12px">Raw Data</label>
+          <div class="archive-json">${jsonData}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ═══════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════
+
+function flashSave(btn) {
+  const flash = btn.nextElementSibling;
+  flash.classList.add('show');
+  setTimeout(() => flash.classList.remove('show'), 2000);
+}
+
+function flashAlert(msg) {
+  // Create a toast-style notification instead of alert
+  const toast = document.createElement('div');
+  toast.style.cssText = `
+    position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+    background: var(--panel-2); border: 1px solid var(--border-light);
+    border-radius: 10px; padding: 14px 20px; max-width: 380px;
+    font-family: 'Sora', sans-serif; font-size: 0.82rem; color: var(--text);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    animation: toastIn 0.3s ease forwards;
+  `;
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.style.animation = 'toastOut 0.3s ease forwards';
+    setTimeout(() => toast.remove(), 300);
+  }, 2500);
+}
+
+// Toast animations
+const toastStyle = document.createElement('style');
+toastStyle.textContent = `
+  @keyframes toastIn { from { opacity:0; transform: translateY(12px); } to { opacity:1; transform: translateY(0); } }
+  @keyframes toastOut { from { opacity:1; transform: translateY(0); } to { opacity:0; transform: translateY(12px); } }
+`;
+document.head.appendChild(toastStyle);
+
+function toggleSwitch(wrap) {
+  const track = wrap.querySelector('.toggle-track');
+  track.classList.toggle('on');
+}
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+
+renderOverview();
+renderDeptTable();
+renderBrandColors();
+renderSlides();
+renderEmailChips();
+renderArchive();
+
+// Auto-focus password
+document.getElementById('loginPwd').focus();
+</script>
+</body>
+</html>

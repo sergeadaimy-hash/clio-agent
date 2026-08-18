@@ -1,0 +1,23 @@
+# OS
+.DS_Store
+
+# Node
+node_modules/
+
+# Secrets
+.env
+
+# Runtime data (lives on the Railway volume, never in git)
+clio-agent/db/clio.db
+clio-agent/db/clio.db-shm
+clio-agent/db/clio.db-wal
+clio-agent/uploads/
+clio-agent/reports/
+*.pptx
+
+# Python
+__pycache__/
+*.pyc
+
+# Local settings
+.claude/settings.local.json

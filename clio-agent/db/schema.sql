@@ -1,0 +1,43 @@
+CREATE TABLE IF NOT EXISTS departments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  head_name TEXT,
+  head_email TEXT,
+  head_whatsapp TEXT,
+  stream_color TEXT DEFAULT '#3B82F6'
+);
+
+CREATE TABLE IF NOT EXISTS daily_submissions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  department_id INTEGER NOT NULL,
+  submission_date TEXT NOT NULL,
+  submitted_at TEXT NOT NULL,
+  overall_progress INTEGER DEFAULT 0,
+  status_text TEXT,
+  highlights TEXT,
+  blockers TEXT,
+  schedule_updates TEXT,
+  photos TEXT,
+  is_submitted INTEGER DEFAULT 0,
+  version INTEGER DEFAULT 1,
+  FOREIGN KEY (department_id) REFERENCES departments(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_subs_dept_date
+  ON daily_submissions(department_id, submission_date);
+
+CREATE TABLE IF NOT EXISTS submission_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  department_id INTEGER,
+  submission_date TEXT,
+  action TEXT,
+  timestamp TEXT
+);
+
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
+
+-- Photo captions: JSON map of filename -> caption
+-- Added via ALTER TABLE if column doesn't exist (handled in server.js migration)

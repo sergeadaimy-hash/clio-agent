@@ -1,0 +1,9 @@
+node_modules/
+.env
+db/clio.db
+uploads/
+reports/
+*.pptx
+__pycache__/
+*.pyc
+.DS_Store

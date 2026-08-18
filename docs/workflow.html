@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CLIO Workflow</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23070B14'/%3E%3Crect x='7' y='15' width='18' height='2' fill='%23FACC15'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%233B82F6'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ==========================================================
+   CLIO Workflow
+   Direction: "Control Room Calm", operations manual edition.
+   A system map of CLIO as built today, for markup and triage.
+   Every claim below is derived from the code on branch clio-v2.
+   ========================================================== */
+
+:root {
+  --bg: #0F172A;
+  --bg-deep: #0B1120;
+  --panel: #1E293B;
+  --panel-2: #16203A;
+  --border: #2B3A55;
+  --border-soft: #223049;
+  --text: #E2E8F0;
+  --text-dim: #B6C2D6;
+  --muted: #64748B;
+  --accent: #3B82F6;
+  --accent-soft: rgba(59, 130, 246, 0.14);
+  --accent-2: #FACC15;              /* label + hairline accent */
+  --accent-2-soft: rgba(250, 204, 21, 0.12);
+  --green: #34D399;
+  --green-soft: rgba(52, 211, 153, 0.12);
+  --amber: #FBBF24;
+  --amber-soft: rgba(251, 191, 36, 0.12);
+  --red: #F87171;
+  --red-soft: rgba(248, 113, 113, 0.12);
+  --blue-soft: rgba(96, 165, 250, 0.12);
+
+  --shell-bg: #070B14;
+  --shell-line: rgba(148, 163, 184, 0.07);
+  --shell-text: #94A3B8;
+
+  --display: "Sora", sans-serif;
+  --ui: "Sora", sans-serif;
+  --mono: "JetBrains Mono", monospace;
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--ui);
+  background:
+    radial-gradient(1200px 600px at 70% -10%, rgba(59,130,246,0.08), transparent 60%),
+    var(--shell-bg);
+  color: var(--text);
+  line-height: 1.55;
+  overflow-x: hidden;
+}
+
+/* faint blueprint grid on the shell */
+body::before {
+  content: "";
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(var(--shell-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--shell-line) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.wrap { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; padding: 0 32px 40px; }
+@media (max-width: 640px) { .wrap { padding: 0 18px 40px; } }
+
+/* ────────── Hero ────────── */
+.hero { padding: 80px 0 24px; }
+.hero .kicker {
+  font-family: var(--mono);
+  font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--accent-2);
+  display: flex; align-items: center; gap: 12px;
+}
+.hero .kicker::before { content: ""; width: 36px; height: 1px; background: var(--accent-2); display: inline-block; flex: none; }
+.hero h1 {
+  font-family: var(--display);
+  font-size: clamp(40px, 6.5vw, 78px);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  margin: 16px 0 18px;
+}
+.hero h1 .thin { font-weight: 400; color: var(--shell-text); }
+.hero p.lede { max-width: 660px; color: var(--text-dim); font-size: 15.5px; font-weight: 300; }
+.hero p.lede strong { color: var(--text); font-weight: 600; }
+
+.direction-strip { margin-top: 30px; display: flex; flex-wrap: wrap; gap: 10px; }
+.direction-strip .chip {
+  font-family: var(--mono); font-size: 11.5px;
+  padding: 7px 13px; border: 1px solid var(--border);
+  border-radius: 999px; color: var(--text-dim);
+  background: rgba(30, 41, 59, 0.5);
+}
+.direction-strip .chip b { color: var(--accent-2); font-weight: 600; }
+
+/* ────────── Section scaffolding ────────── */
+section { padding-top: 68px; }
+.sec-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 8px; }
+.sec-head .num { font-family: var(--mono); font-size: 13px; color: var(--accent-2); }
+.sec-head h2 { font-family: var(--display); font-weight: 700; font-size: clamp(24px, 3.4vw, 32px); letter-spacing: -0.01em; }
+.sec-sub { color: var(--shell-text); font-size: 14px; font-weight: 300; max-width: 700px; margin-bottom: 30px; }
+.sec-sub code, .mono { font-family: var(--mono); font-size: 0.92em; color: var(--text-dim); }
+
+.frame-holder { overflow-x: auto; padding-bottom: 12px; }
+.frame-inner { min-width: 1080px; }
+
+/* ────────── Timeline ────────── */
+.tl { position: relative; display: flex; gap: 18px; padding: 30px 4px 6px; }
+.tl::before {
+  content: ""; position: absolute; left: 8px; right: 8px; top: 14px; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border) 6%, var(--border) 94%, transparent);
+}
+.tl-stop { flex: 1 1 0; min-width: 190px; position: relative; }
+.tl-stop::before {
+  content: ""; position: absolute; top: -21px; left: 14px;
+  width: 11px; height: 11px; border-radius: 50%;
+  background: var(--bg-deep); border: 2px solid var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+.tl-stop.cron::before { border-color: var(--accent-2); box-shadow: 0 0 0 4px var(--accent-2-soft); }
+.tl-time {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em;
+  color: var(--accent-2); text-transform: uppercase; margin-bottom: 8px; padding-left: 2px;
+}
+.tl-card {
+  border: 1px solid var(--border-soft); border-radius: 14px;
+  background: linear-gradient(180deg, rgba(30,41,59,0.6), rgba(15,23,42,0.6));
+  padding: 15px 16px; height: 100%;
+}
+.tl-card h3 { font-family: var(--display); font-size: 14.5px; font-weight: 700; margin-bottom: 8px; }
+.tl-card p { font-size: 11.8px; color: var(--text-dim); font-weight: 300; margin-bottom: 6px; }
+.tl-card p:last-child { margin-bottom: 0; }
+.tl-card .m { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.tl-branch { margin-top: 10px; border-top: 1px dashed var(--border-soft); padding-top: 9px; }
+.tl-branch .b-row { display: flex; gap: 8px; align-items: flex-start; font-size: 11.5px; color: var(--text-dim); font-weight: 300; margin-bottom: 7px; }
+.tl-branch .b-row:last-child { margin-bottom: 0; }
+.b-tag {
+  flex: none; font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em;
+  padding: 2px 7px; border-radius: 5px; margin-top: 1px;
+}
+.b-tag.ok { color: var(--green); background: var(--green-soft); }
+.b-tag.fail { color: var(--red); background: var(--red-soft); }
+
+.note-inline {
+  margin-top: 14px; font-size: 12.5px; color: var(--shell-text); font-weight: 300;
+  border-left: 2px solid var(--accent-2); padding-left: 12px; max-width: 760px;
+}
+.note-inline b { color: var(--text-dim); font-weight: 600; }
+
+/* ────────── Actor map ────────── */
+.svg-holder { overflow-x: auto; padding-bottom: 10px; }
+.svg-holder svg { min-width: 1040px; display: block; }
+
+.actor-cards { margin-top: 22px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.a-card {
+  border: 1px solid var(--border-soft); border-radius: 12px; padding: 14px 16px;
+  background: rgba(30, 41, 59, 0.35); font-size: 12.5px; color: var(--text-dim); font-weight: 300;
+}
+.a-card b { color: var(--text); font-weight: 600; display: block; margin-bottom: 4px; font-size: 12.5px; }
+.a-card b .a-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 8px; vertical-align: 1px; }
+
+/* ────────── Endpoint inventory ────────── */
+.auth-group { margin-bottom: 26px; }
+.auth-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.auth-badge {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em;
+  padding: 4px 11px; border-radius: 6px; font-weight: 600;
+}
+.auth-badge.pub { color: var(--green); background: var(--green-soft); border: 1px solid rgba(52,211,153,0.3); }
+.auth-badge.adm { color: #60A5FA; background: var(--blue-soft); border: 1px solid rgba(96,165,250,0.3); }
+.auth-badge.mix { color: var(--amber); background: var(--amber-soft); border: 1px solid rgba(251,191,36,0.3); }
+.auth-badge.key { color: var(--accent-2); background: var(--accent-2-soft); border: 1px solid rgba(250,204,21,0.3); }
+.auth-head .ah-note { font-size: 11.5px; color: var(--muted); font-weight: 300; }
+
+.ep-table {
+  border: 1px solid var(--border-soft); border-radius: 14px; overflow: hidden;
+  background: linear-gradient(180deg, rgba(30,41,59,0.4), rgba(15,23,42,0.4));
+}
+.ep-row {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding: 9px 16px; border-bottom: 1px dashed var(--border-soft);
+}
+.ep-row:last-child { border-bottom: none; }
+.ep-m {
+  flex: none; font-family: var(--mono); font-size: 10px; font-weight: 600;
+  letter-spacing: 0.08em; width: 52px;
+}
+.ep-m.get { color: #60A5FA; }
+.ep-m.post { color: var(--green); }
+.ep-m.put { color: var(--amber); }
+.ep-m.del { color: var(--red); }
+.ep-path { font-family: var(--mono); font-size: 12px; color: var(--text); word-break: break-all; }
+.ep-note { font-size: 11px; color: var(--muted); font-weight: 300; flex: 1 1 220px; }
+.ep-flag {
+  flex: none; font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.1em;
+  color: var(--amber); background: var(--amber-soft); border: 1px solid rgba(251,191,36,0.3);
+  padding: 2px 7px; border-radius: 5px;
+}
+
+/* ────────── Data stores ────────── */
+.stores { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.store-card {
+  border: 1px solid var(--border-soft); border-radius: 12px; padding: 14px 16px;
+  background: rgba(30, 41, 59, 0.35);
+}
+.store-card .s-name { font-family: var(--mono); font-size: 12px; color: var(--accent-2); margin-bottom: 5px; }
+.store-card p { font-size: 12px; color: var(--text-dim); font-weight: 300; }
+.store-card p .m { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+
+.fs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+@media (max-width: 780px) { .fs-grid { grid-template-columns: 1fr; } }
+.fs-card {
+  border: 1px solid var(--border-soft); border-radius: 12px; padding: 16px 18px;
+  background: var(--panel-2); overflow-x: auto;
+}
+.fs-card h4 { font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+.fs-card pre {
+  font-family: var(--mono); font-size: 11.5px; line-height: 1.7; color: var(--text-dim);
+}
+.fs-card pre .c { color: var(--muted); }
+.fs-card pre .y { color: var(--accent-2); }
+
+/* ────────── Weak spots ────────── */
+.ws-list { border: 1px solid var(--border-soft); border-radius: 14px; overflow: hidden; background: linear-gradient(180deg, rgba(30,41,59,0.4), rgba(15,23,42,0.4)); }
+.ws-row { display: flex; gap: 14px; padding: 13px 16px; border-bottom: 1px dashed var(--border-soft); align-items: flex-start; }
+.ws-row:last-child { border-bottom: none; }
+.sev {
+  flex: none; font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: 0.12em;
+  padding: 3px 9px; border-radius: 5px; margin-top: 2px; width: 66px; text-align: center;
+}
+.sev.high { color: #FCA5A5; background: linear-gradient(90deg, var(--red-soft), var(--amber-soft)); border: 1px solid rgba(248,113,113,0.4); }
+.sev.med { color: var(--amber); background: var(--amber-soft); border: 1px solid rgba(251,191,36,0.3); }
+.sev.low { color: var(--muted); background: rgba(100,116,139,0.12); border: 1px solid rgba(100,116,139,0.3); }
+.ws-body { flex: 1; min-width: 0; }
+.ws-body .ws-t { font-size: 13px; font-weight: 600; color: var(--text); }
+.ws-body .ws-d { font-size: 11.8px; color: var(--text-dim); font-weight: 300; margin-top: 2px; }
+.ws-body .ws-fix { font-family: var(--mono); font-size: 10.5px; color: var(--green); margin-top: 5px; }
+.ws-body .ws-fix::before { content: "FIX "; color: var(--muted); letter-spacing: 0.12em; font-size: 9px; }
+
+/* ────────── Config flow ────────── */
+.cf-flow { display: flex; gap: 0; align-items: stretch; flex-wrap: wrap; margin-bottom: 14px; }
+.cf-node {
+  flex: 1 1 200px; border: 1px solid var(--border-soft); border-radius: 12px;
+  background: var(--panel-2); padding: 14px 16px; min-width: 200px;
+}
+.cf-node .cf-k { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent-2); margin-bottom: 6px; }
+.cf-node .cf-t { font-family: var(--display); font-size: 13.5px; font-weight: 700; margin-bottom: 5px; }
+.cf-node p { font-size: 11.5px; color: var(--text-dim); font-weight: 300; }
+.cf-node p .m { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.cf-arrow {
+  flex: none; align-self: center; padding: 0 10px;
+  font-family: var(--mono); font-size: 16px; color: var(--accent);
+}
+@media (max-width: 900px) {
+  .cf-flow { flex-direction: column; }
+  .cf-arrow { transform: rotate(90deg); padding: 6px 0; align-self: flex-start; margin-left: 24px; }
+}
+
+.env-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 14px; }
+.env-card { border: 1px solid var(--border-soft); border-radius: 12px; background: rgba(30,41,59,0.35); padding: 14px 16px; }
+.env-card h4 { font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); margin-bottom: 9px; }
+.env-card ul { list-style: none; }
+.env-card li { font-family: var(--mono); font-size: 11px; color: var(--text-dim); padding: 2.5px 0; }
+.env-card li span { color: var(--muted); font-size: 10px; }
+
+/* ────────── Footer ────────── */
+footer {
+  margin-top: 80px; padding: 22px 0 34px; border-top: 1px solid var(--border-soft);
+  display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  font-family: var(--mono); font-size: 11px; color: var(--muted);
+}
+footer .fy { color: var(--accent-2); }
+
+/* ────────── Reveal ────────── */
+@keyframes rise { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
+.rise { animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.d1 { animation-delay: 0.05s; } .d2 { animation-delay: 0.15s; } .d3 { animation-delay: 0.25s; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ================= HERO ================= -->
+  <header class="hero">
+    <div class="kicker rise">CLIO, System Map, Operations Manual</div>
+    <h1 class="rise d1">CLIO<br><span class="thin">Workflow.</span></h1>
+    <p class="lede rise d2">
+      What the system does today, drawn from the code on <strong>branch clio-v2</strong>.
+      One event day end to end, every actor, every endpoint, every store,
+      and the <strong>known weak spots</strong> ranked for triage.
+      Mark it up; nothing here is aspirational.
+    </p>
+    <div class="direction-strip rise d3">
+      <span class="chip">Routes: <b>38</b></span>
+      <span class="chip">DB tables: <b>6</b></span>
+      <span class="chip">Cron jobs: <b>2</b></span>
+      <span class="chip">Admin sections: <b>9</b></span>
+      <span class="chip">Flagged spots: <b>12</b></span>
+    </div>
+  </header>
+
+  <!-- ================= 01 DAILY TIMELINE ================= -->
+  <section>
+    <div class="sec-head"><span class="num">01</span><h2>One Event Day</h2></div>
+    <p class="sec-sub">
+      Submissions bucket by local date in the configured timezone (default <code>Asia/Riyadh</code>).
+      Both cron times come from <code>schedule_config</code>; saving the Schedule section restarts the jobs immediately.
+    </p>
+
+    <div class="frame-holder rise">
+      <div class="frame-inner">
+        <div class="tl">
+          <div class="tl-stop">
+            <div class="tl-time">00:00 · Day opens</div>
+            <div class="tl-card">
+              <h3>New reporting date</h3>
+              <p>The date bucket rolls over at local midnight. Portal, reminders, and the nightly report all key off this one date string.</p>
+              <p class="m">today() · luxon · TIMEZONE env</p>
+            </div>
+          </div>
+          <div class="tl-stop">
+            <div class="tl-time">All day</div>
+            <div class="tl-card">
+              <h3>HOD submissions</h3>
+              <p>Three-step portal: progress, notes, photos with captions. Each text field is polished in-browser via Claude Haiku before submit; on any API error the original text passes through untouched.</p>
+              <p>Resubmits merge photos and captions and bump the version.</p>
+              <p class="m">POST /api/submit · POST /api/review-text</p>
+            </div>
+          </div>
+          <div class="tl-stop">
+            <div class="tl-time">Per submission</div>
+            <div class="tl-card">
+              <h3>Confirmations fan out</h3>
+              <p>The HOD gets an email and WhatsApp receipt. The PM list gets an email with the status text, highlights, blockers, and the live submitted-versus-pending roster.</p>
+              <p class="m">notifyHodSubmissionConfirmation · notifyPmOnSubmission</p>
+            </div>
+          </div>
+          <div class="tl-stop cron">
+            <div class="tl-time">21:00 · Reminder cron</div>
+            <div class="tl-card">
+              <h3>Nudge the stragglers</h3>
+              <p>Email plus WhatsApp, sent only to departments that have not yet submitted. Each send is logged to the audit trail. Admin can also fire this manually, per department or for all.</p>
+              <p class="m">sendPendingReminders() · reminder_sent</p>
+            </div>
+          </div>
+          <div class="tl-stop cron">
+            <div class="tl-time">23:00 · Report cron</div>
+            <div class="tl-card">
+              <h3>Deck generation</h3>
+              <p>A Python process reads SQLite directly and builds the branded PPTX. Runs for the same date are serialized behind a per-date lock so preview renders and the nightly job never tear the file.</p>
+              <p class="m">generate_report.py · reports/{date}/daily_report.pptx</p>
+            </div>
+          </div>
+          <div class="tl-stop">
+            <div class="tl-time">23:00+ · Delivery</div>
+            <div class="tl-card">
+              <h3>Two exits</h3>
+              <div class="tl-branch">
+                <div class="b-row"><span class="b-tag ok">OK</span>Report emailed to the PM list with the PPTX attached, plus a WhatsApp ping to PM numbers.</div>
+                <div class="b-row"><span class="b-tag fail">FAIL</span>Error email to PMs with the full raw submission JSON dump, so no data is stranded. Logged as report_failed.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="note-inline">
+      <b>Fail-soft is the house rule:</b> every notification, every WhatsApp send, and the LLM polish are wrapped so a failure logs and moves on. Nothing in the notify path can block a submission or the nightly report.
+    </p>
+  </section>
+
+  <!-- ================= 02 ACTOR MAP ================= -->
+  <section>
+    <div class="sec-head"><span class="num">02</span><h2>Actor Map</h2></div>
+    <p class="sec-sub">Who talks to what. Solid lines are direct HTTP; the dashed frame is the deployment boundary planned for Railway.</p>
+
+    <div class="svg-holder rise">
+      <svg viewBox="0 0 1040 590" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="CLIO actor map diagram">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="#3B82F6"/>
+          </marker>
+          <marker id="arrY" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="#FACC15"/>
+          </marker>
+        </defs>
+
+        <!-- Railway boundary -->
+        <rect x="330" y="130" width="690" height="440" rx="18" fill="none" stroke="#2B3A55" stroke-dasharray="7 6"/>
+        <text x="352" y="158" font-family="JetBrains Mono, monospace" font-size="10" letter-spacing="2" fill="#64748B">RAILWAY HOST (PLANNED) · DATA_DIR VOLUME</text>
+
+        <!-- CLIO server -->
+        <rect x="420" y="240" width="250" height="110" rx="14" fill="#16203A" stroke="#3B82F6"/>
+        <text x="545" y="278" text-anchor="middle" font-family="Sora, sans-serif" font-weight="700" font-size="17" fill="#E2E8F0">CLIO SERVER</text>
+        <text x="545" y="300" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#94A3B8">server.js · Express · node-cron</text>
+        <text x="545" y="318" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#94A3B8">notifications · whatsapp modules</text>
+
+        <!-- HOD -->
+        <rect x="30" y="180" width="200" height="92" rx="14" fill="#1E293B" stroke="#223049"/>
+        <text x="130" y="212" text-anchor="middle" font-family="Sora, sans-serif" font-weight="700" font-size="14" fill="#E2E8F0">HOD</text>
+        <text x="130" y="232" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9.5" fill="#94A3B8">portal on phone</text>
+        <text x="130" y="248" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9.5" fill="#94A3B8">WhatsApp chat</text>
+
+        <!-- Admin -->
+        <rect x="30" y="330" width="200" height="92" rx="14" fill="#1E293B" stroke="#223049"/>
+        <text x="130" y="362" text-anchor="middle" font-family="Sora, sans-serif" font-weight="700" font-size="14" fill="#E2E8F0">ADMIN</text>
+        <text x="130" y="382" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9.5" fill="#94A3B8">console · 9 sections</text>
+        <text x="130" y="398" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9.5" fill="#94A3B8">x-admin-password</text>
+
+        <!-- Meta -->
+        <rect x="30" y="40" width="200" height="92" rx="14" fill="#1E293B" stroke="#223049"/>
+        <text x="130" y="72" text-anchor="middle" font-family="Sora, sans-serif" font-weight="700" font-size="14" fill="#E2E8F0">META CLOUD API</text>
+        <text x="130" y="92" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9.5" fill="#94A3B8">signed webhook in</text>
+        <text x="130" y="108" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9.5" fill="#94A3B8">Graph API out</text>
+
+        <!-- Claude -->
+        <rect x="770" y="180" width="220" height="92" rx="14" fill="#1E293B" stroke="#223049"/>
+        <text x="880" y="212" text-anchor="middle" font-family="Sora, sans-serif" font-weight="700" font-size="14" fill="#E2E8F0">CLIO AGENT · CLAUDE</text>
+        <text x="880" y="232" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9.5" fill="#94A3B8">Haiku · text polish</text>
+        <text x="880" y="248" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9.5" fill="#94A3B8">WA auto-reply · capped</text>
+
+        <!-- PM team -->
+        <rect x="770" y="330" width="220" height="92" rx="14" fill="#1E293B" stroke="#223049"/>
+        <text x="880" y="362" text-anchor="middle" font-family="Sora, sans-serif" font-weight="700" font-size="14" fill="#E2E8F0">PM TEAM</text>
+        <text x="880" y="382" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9.5" fill="#94A3B8">email recipients</text>
+        <text x="880" y="398" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9.5" fill="#94A3B8">deck · alerts · receipts</text>
+
+        <!-- Python generator -->
+        <rect x="380" y="460" width="240" height="84" rx="14" fill="#1E293B" stroke="#223049"/>
+        <text x="500" y="492" text-anchor="middle" font-family="Sora, sans-serif" font-weight="700" font-size="14" fill="#E2E8F0">PYTHON GENERATOR</text>
+        <text x="500" y="512" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9.5" fill="#94A3B8">python-pptx · matplotlib</text>
+        <text x="500" y="527" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9.5" fill="#94A3B8">spawned per date</text>
+
+        <!-- Storage -->
+        <rect x="700" y="460" width="280" height="84" rx="14" fill="#1E293B" stroke="#FACC15" stroke-opacity="0.5"/>
+        <text x="840" y="492" text-anchor="middle" font-family="Sora, sans-serif" font-weight="700" font-size="14" fill="#E2E8F0">SQLITE + FILES</text>
+        <text x="840" y="512" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9.5" fill="#94A3B8">db/clio.db · uploads/ · reports/</text>
+        <text x="840" y="527" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9.5" fill="#94A3B8">all under DATA_DIR</text>
+
+        <!-- Edges -->
+        <!-- HOD to CLIO -->
+        <line x1="230" y1="240" x2="420" y2="270" stroke="#3B82F6" stroke-width="1.4" marker-end="url(#arr)"/>
+        <text x="262" y="242" font-family="JetBrains Mono, monospace" font-size="9" fill="#94A3B8">submit · status</text>
+        <!-- CLIO to HOD (reminders) -->
+        <line x1="420" y1="300" x2="232" y2="262" stroke="#3B82F6" stroke-width="1.4" marker-end="url(#arr)" stroke-opacity="0.7"/>
+        <text x="258" y="296" font-family="JetBrains Mono, monospace" font-size="9" fill="#94A3B8">reminders · receipts</text>
+        <!-- Admin to CLIO -->
+        <line x1="230" y1="376" x2="420" y2="330" stroke="#3B82F6" stroke-width="1.4" marker-end="url(#arr)"/>
+        <text x="258" y="366" font-family="JetBrains Mono, monospace" font-size="9" fill="#94A3B8">/api/admin/*</text>
+        <!-- HOD phone to Meta -->
+        <line x1="130" y1="180" x2="130" y2="132" stroke="#64748B" stroke-width="1.2" stroke-dasharray="4 4"/>
+        <text x="140" y="162" font-family="JetBrains Mono, monospace" font-size="9" fill="#64748B">chats</text>
+        <!-- Meta to CLIO webhook -->
+        <line x1="230" y1="88" x2="452" y2="240" stroke="#FACC15" stroke-width="1.3" marker-end="url(#arrY)" stroke-opacity="0.85"/>
+        <text x="286" y="130" font-family="JetBrains Mono, monospace" font-size="9" fill="#FACC15" fill-opacity="0.85">webhook · HMAC signed</text>
+        <!-- CLIO to Meta send -->
+        <line x1="430" y1="252" x2="234" y2="118" stroke="#3B82F6" stroke-width="1.3" marker-end="url(#arr)" stroke-opacity="0.7"/>
+        <text x="300" y="188" font-family="JetBrains Mono, monospace" font-size="9" fill="#94A3B8">send text · template</text>
+        <!-- CLIO to Claude -->
+        <line x1="670" y1="270" x2="770" y2="240" stroke="#3B82F6" stroke-width="1.4" marker-end="url(#arr)"/>
+        <text x="676" y="242" font-family="JetBrains Mono, monospace" font-size="9" fill="#94A3B8">polish · reply</text>
+        <!-- CLIO to PM -->
+        <line x1="670" y1="320" x2="770" y2="360" stroke="#3B82F6" stroke-width="1.4" marker-end="url(#arr)"/>
+        <text x="676" y="356" font-family="JetBrains Mono, monospace" font-size="9" fill="#94A3B8">SMTP email</text>
+        <!-- CLIO to Python -->
+        <line x1="520" y1="350" x2="505" y2="460" stroke="#3B82F6" stroke-width="1.4" marker-end="url(#arr)"/>
+        <text x="524" y="412" font-family="JetBrains Mono, monospace" font-size="9" fill="#94A3B8">spawn</text>
+        <!-- Python to storage -->
+        <line x1="620" y1="502" x2="700" y2="502" stroke="#FACC15" stroke-width="1.3" marker-end="url(#arrY)" stroke-opacity="0.85"/>
+        <text x="628" y="493" font-family="JetBrains Mono, monospace" font-size="9" fill="#FACC15" fill-opacity="0.85">reads db</text>
+        <!-- CLIO to storage -->
+        <line x1="640" y1="350" x2="800" y2="460" stroke="#3B82F6" stroke-width="1.4" marker-end="url(#arr)" stroke-opacity="0.7"/>
+        <text x="712" y="404" font-family="JetBrains Mono, monospace" font-size="9" fill="#94A3B8">read · write</text>
+      </svg>
+    </div>
+
+    <div class="actor-cards">
+      <div class="a-card"><b><span class="a-dot" style="background:#3B82F6"></span>HOD</b>Files the daily report from a phone: three-step portal, photo captions, edit until the deadline. Also chats on WhatsApp, where reminders and receipts land.</div>
+      <div class="a-card"><b><span class="a-dot" style="background:#60A5FA"></span>Admin</b>Runs the console: Overview, Departments, WhatsApp, Brand, Report, Delivery, Schedule, Archive, Project. Sends nudges, triggers decks, takes over WhatsApp threads.</div>
+      <div class="a-card"><b><span class="a-dot" style="background:#34D399"></span>CLIO agent</b>Claude Haiku behind two jobs: polishing HOD text field by field, and auto-replying to inbound WhatsApp. Replies are capped at 5 per thread per day and 50 per day globally, and any thread can be switched to human mode, which silences the agent for that conversation.</div>
+      <div class="a-card"><b><span class="a-dot" style="background:#FBBF24"></span>PM team</b>Pure email recipients, managed from the Delivery section. They get per-submission updates, the nightly deck with attachment, and failure alerts with the raw data.</div>
+      <div class="a-card"><b><span class="a-dot" style="background:#FACC15"></span>Meta webhook</b>Inbound messages and delivery statuses arrive on a webhook verified two ways: a token handshake on GET and an HMAC SHA-256 signature check on every POST. Duplicate deliveries are dropped by message id.</div>
+      <div class="a-card"><b><span class="a-dot" style="background:#94A3B8"></span>Railway host</b>Planned deployment target. The DB, uploads, and reports all resolve under a single DATA_DIR so one mounted volume carries the whole state.</div>
+    </div>
+  </section>
+
+  <!-- ================= 03 ENDPOINT INVENTORY ================= -->
+  <section>
+    <div class="sec-head"><span class="num">03</span><h2>Endpoint Inventory</h2></div>
+    <p class="sec-sub">
+      Every Express route, grouped by what it takes to call it. Admin auth accepts the password as an
+      <code>x-admin-password</code> header, or as a body or query field; the two flagged image routes lean on the
+      query form because <code>&lt;img&gt;</code> tags cannot send headers.
+    </p>
+
+    <div class="auth-group rise">
+      <div class="auth-head"><span class="auth-badge pub">PUBLIC</span><span class="ah-note">no credentials; the webhook pair carries its own Meta verification</span></div>
+      <div class="ep-table">
+        <div class="ep-row"><span class="ep-m get">GET</span><span class="ep-path">/</span><span class="ep-note">HOD portal (static, with /admin.html and assets)</span></div>
+        <div class="ep-row"><span class="ep-m get">GET</span><span class="ep-path">/health</span><span class="ep-note">liveness check with server time</span></div>
+        <div class="ep-row"><span class="ep-m get">GET</span><span class="ep-path">/api/status</span><span class="ep-note">today's roster, brand tokens, logo URL, report time</span></div>
+        <div class="ep-row"><span class="ep-m get">GET</span><span class="ep-path">/api/submission/:department_id</span><span class="ep-note">today's submitted report for one department</span></div>
+        <div class="ep-row"><span class="ep-m post">POST</span><span class="ep-path">/api/submit</span><span class="ep-note">multipart submission, up to 20 photos, resubmit merges</span></div>
+        <div class="ep-row"><span class="ep-m post">POST</span><span class="ep-path">/api/review-text</span><span class="ep-note">Claude Haiku polish, rate limited to 20 per minute per IP</span></div>
+        <div class="ep-row"><span class="ep-m post">POST</span><span class="ep-path">/api/admin/verify</span><span class="ep-note">login check; validates the password it is given</span></div>
+        <div class="ep-row"><span class="ep-m get">GET</span><span class="ep-path">/api/whatsapp/webhook</span><span class="ep-note">Meta subscribe handshake, timing-safe verify token</span></div>
+        <div class="ep-row"><span class="ep-m post">POST</span><span class="ep-path">/api/whatsapp/webhook</span><span class="ep-note">inbound messages and statuses, HMAC SHA-256 signature</span></div>
+        <div class="ep-row"><span class="ep-m get">GET</span><span class="ep-path">/uploads/brand/*</span><span class="ep-note">static brand assets, e.g. the uploaded logo</span></div>
+      </div>
+    </div>
+
+    <div class="auth-group rise d1">
+      <div class="auth-head"><span class="auth-badge adm">ADMIN</span><span class="ah-note">shared password via header, body, or query</span></div>
+      <div class="ep-table">
+        <div class="ep-row"><span class="ep-m post">POST</span><span class="ep-path">/api/admin/send-reminders</span><span class="ep-note">nudge all pending HODs, or one department</span></div>
+        <div class="ep-row"><span class="ep-m get">GET</span><span class="ep-path">/api/admin/logs</span><span class="ep-note">last 100 audit trail entries</span></div>
+        <div class="ep-row"><span class="ep-m get">GET</span><span class="ep-path">/api/admin/download/:date</span><span class="ep-note">download a generated PPTX</span></div>
+        <div class="ep-row"><span class="ep-m get">GET</span><span class="ep-path">/api/admin/whatsapp/threads</span><span class="ep-note">inbox list with department and last message</span></div>
+        <div class="ep-row"><span class="ep-m get">GET</span><span class="ep-path">/api/admin/whatsapp/threads/:id/messages</span><span class="ep-note">thread history, marks the thread read</span></div>
+        <div class="ep-row"><span class="ep-m post">POST</span><span class="ep-path">/api/admin/whatsapp/threads/:id/mode</span><span class="ep-note">agent or human takeover per thread</span></div>
+        <div class="ep-row"><span class="ep-m post">POST</span><span class="ep-path">/api/admin/whatsapp/threads/:id/reply</span><span class="ep-note">send a human reply into a thread</span></div>
+        <div class="ep-row"><span class="ep-m get">GET</span><span class="ep-path">/api/admin/settings</span><span class="ep-note">all settings blobs plus WhatsApp config state</span></div>
+        <div class="ep-row"><span class="ep-m put">PUT</span><span class="ep-path">/api/admin/settings</span><span class="ep-note">write event, brand, report, PM, delivery settings</span></div>
+        <div class="ep-row"><span class="ep-m post">POST</span><span class="ep-path">/api/admin/brand-logo</span><span class="ep-note">logo upload, converted to PNG</span></div>
+        <div class="ep-row"><span class="ep-m post">POST</span><span class="ep-path">/api/admin/report-template</span><span class="ep-note">PPTX template import, magic-byte checked</span></div>
+        <div class="ep-row"><span class="ep-m del">DEL</span><span class="ep-path">/api/admin/report-template</span><span class="ep-note">remove template, revert to token mode</span></div>
+        <div class="ep-row"><span class="ep-m get">GET</span><span class="ep-path">/api/admin/report-preview-data</span><span class="ep-note">brand, config, and latest submissions for the live preview</span></div>
+        <div class="ep-row"><span class="ep-m post">POST</span><span class="ep-path">/api/admin/report-preview-render</span><span class="ep-note">true preview: generate deck, rasterize to PNGs, cached per config hash</span></div>
+        <div class="ep-row"><span class="ep-m get">GET</span><span class="ep-path">/api/admin/report-preview-image</span><span class="ep-note">serves one preview PNG, path-guarded</span><span class="ep-flag">?PASSWORD=</span></div>
+        <div class="ep-row"><span class="ep-m get">GET</span><span class="ep-path">/api/admin/departments</span><span class="ep-note">list all departments</span></div>
+        <div class="ep-row"><span class="ep-m post">POST</span><span class="ep-path">/api/admin/departments</span><span class="ep-note">create, validates one-level parent hierarchy</span></div>
+        <div class="ep-row"><span class="ep-m put">PUT</span><span class="ep-path">/api/admin/departments/:id</span><span class="ep-note">update; a parent with children cannot become a child</span></div>
+        <div class="ep-row"><span class="ep-m del">DEL</span><span class="ep-path">/api/admin/departments/:id</span><span class="ep-note">delete; children are orphaned, not cascaded</span></div>
+        <div class="ep-row"><span class="ep-m get">GET</span><span class="ep-path">/api/admin/photo</span><span class="ep-note">serve one uploaded photo by path, path-guarded</span></div>
+        <div class="ep-row"><span class="ep-m get">GET</span><span class="ep-path">/api/archive</span><span class="ep-note">list archived dates and their department folders</span></div>
+        <div class="ep-row"><span class="ep-m get">GET</span><span class="ep-path">/api/archive/:date</span><span class="ep-note">full day view: submissions plus photo URLs</span></div>
+        <div class="ep-row"><span class="ep-m get">GET</span><span class="ep-path">/api/archive/:date/:dept/:file</span><span class="ep-note">serves one archived photo</span><span class="ep-flag">?PASSWORD=</span></div>
+        <div class="ep-row"><span class="ep-m get">GET</span><span class="ep-path">/api/admin/schedule</span><span class="ep-note">current reminder and report times</span></div>
+        <div class="ep-row"><span class="ep-m put">PUT</span><span class="ep-path">/api/admin/schedule</span><span class="ep-note">save schedule and restart both cron jobs</span></div>
+      </div>
+    </div>
+
+    <div class="auth-group rise d2">
+      <div class="auth-head"><span class="auth-badge mix">ADMIN OR API-KEY</span><span class="ah-note">console password, or x-api-key for automation</span></div>
+      <div class="ep-table">
+        <div class="ep-row"><span class="ep-m post">POST</span><span class="ep-path">/api/generate-report</span><span class="ep-note">generate a deck for any date, optional immediate email</span></div>
+        <div class="ep-row"><span class="ep-m get">GET</span><span class="ep-path">/api/report/:date</span><span class="ep-note">raw submission rows for a date, JSON</span></div>
+      </div>
+    </div>
+
+    <div class="auth-group rise d3">
+      <div class="auth-head"><span class="auth-badge key">API-KEY</span><span class="ah-note">x-api-key matching REPORT_API_KEY only</span></div>
+      <div class="ep-table">
+        <div class="ep-row"><span class="ep-m get">GET</span><span class="ep-path">/api/weekly-summary</span><span class="ep-note">runs the weekly PPTX generator for a 7-day window</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 04 DATA STORES ================= -->
+  <section>
+    <div class="sec-head"><span class="num">04</span><h2>Data Stores</h2></div>
+    <p class="sec-sub">
+      One SQLite file plus two file trees, all resolved under <code>DATA_DIR</code> when set
+      (the Railway volume) and under the app folder otherwise.
+    </p>
+
+    <div class="stores rise">
+      <div class="store-card"><div class="s-name">departments</div><p>The reporting units: HOD contact details, stream color, and a one-level <span class="m">parent_id</span> hierarchy for grouped streams.</p></div>
+      <div class="store-card"><div class="s-name">daily_submissions</div><p>One row per department per date: progress, texts, schedule, photo paths, captions, polished variants, version counter.</p></div>
+      <div class="store-card"><div class="s-name">submission_log</div><p>Append-only audit trail: submits, reminders, settings changes, report runs and failures.</p></div>
+      <div class="store-card"><div class="s-name">settings</div><p>Key-value JSON blobs: event identity, <span class="m">brand_config</span>, <span class="m">report_config</span>, <span class="m">pm_emails</span>, <span class="m">delivery_config</span>, <span class="m">schedule_config</span>.</p></div>
+      <div class="store-card"><div class="s-name">whatsapp_threads</div><p>One per phone number: linked department, display name, unread count, and the per-thread <span class="m">agent / human</span> mode.</p></div>
+      <div class="store-card"><div class="s-name">whatsapp_messages</div><p>Every message in and out: direction, sender (system, agent, human), template name, Meta message id, delivery status.</p></div>
+    </div>
+
+    <div class="fs-grid rise d1">
+      <div class="fs-card">
+        <h4>uploads/</h4>
+        <pre>uploads/
+├─ <span class="y">{date}</span>/
+│  └─ <span class="y">{DEPT_SLUG}</span>/
+│     └─ *.jpg          <span class="c">photos, HEIC re-encoded</span>
+└─ brand/
+   ├─ logo.png           <span class="c">admin-uploaded logo</span>
+   └─ report_template.pptx  <span class="c">imported deck template</span></pre>
+      </div>
+      <div class="fs-card">
+        <h4>reports/</h4>
+        <pre>reports/
+└─ <span class="y">{date}</span>/
+   ├─ daily_report.pptx  <span class="c">the nightly deck</span>
+   └─ preview/
+      └─ <span class="y">{confighash}</span>/
+         └─ slide-NN.png <span class="c">rasterized preview cache</span></pre>
+      </div>
+    </div>
+    <p class="note-inline">
+      <b>DATA_DIR indirection:</b> <code>db/clio.db</code>, <code>uploads/</code>, and <code>reports/</code> all derive from one env var,
+      so mounting a single volume at <code>/data</code> on Railway persists the entire system state. The Python generator resolves the same paths independently.
+    </p>
+  </section>
+
+  <!-- ================= 05 WEAK SPOTS ================= -->
+  <section>
+    <div class="sec-head"><span class="num">05</span><h2>Flagged Weak Spots</h2></div>
+    <p class="sec-sub">Known gaps, verified against the code, ranked so the highest-value fixes surface first. None of these block day-to-day use today.</p>
+
+    <div class="ws-list rise">
+      <div class="ws-row">
+        <span class="sev high">HIGH</span>
+        <div class="ws-body">
+          <div class="ws-t">SQLite on a single volume with no backup job</div>
+          <div class="ws-d">All state lives in one clio.db plus file trees; losing the volume loses the event history.</div>
+          <div class="ws-fix">nightly copy to object storage, or Litestream replication</div>
+        </div>
+      </div>
+      <div class="ws-row">
+        <span class="sev med">MEDIUM</span>
+        <div class="ws-body">
+          <div class="ws-t">Admin auth is one shared password on every request</div>
+          <div class="ws-d">No sessions, no roles, no expiry; anyone with the string is fully admin forever.</div>
+          <div class="ws-fix">session tokens + per-user accounts before multi-admin use</div>
+        </div>
+      </div>
+      <div class="ws-row">
+        <span class="sev med">MEDIUM</span>
+        <div class="ws-body">
+          <div class="ws-t">Archive and preview image URLs carry the admin password in the query string</div>
+          <div class="ws-d">Needed because img tags cannot send headers, but the password lands in browser history and server logs.</div>
+          <div class="ws-fix">short-lived signed URLs for image serving</div>
+        </div>
+      </div>
+      <div class="ws-row">
+        <span class="sev med">MEDIUM</span>
+        <div class="ws-body">
+          <div class="ws-t">Meta test-number access token expires roughly every 24 hours</div>
+          <div class="ws-d">Operational burden: WhatsApp silently degrades to fail-soft skips when the token lapses.</div>
+          <div class="ws-fix">permanent system-user token + a registered message template for production</div>
+        </div>
+      </div>
+      <div class="ws-row">
+        <span class="sev med">MEDIUM</span>
+        <div class="ws-body">
+          <div class="ws-t">req.ip needs trust proxy on Railway</div>
+          <div class="ws-d">Behind Railway's proxy every request shares one IP, so the per-IP review-text limit collapses to a single bucket.</div>
+          <div class="ws-fix">app.set('trust proxy', 1) in the deploy task, already planned</div>
+        </div>
+      </div>
+      <div class="ws-row">
+        <span class="sev med">MEDIUM</span>
+        <div class="ws-body">
+          <div class="ws-t">Weekly generator predates the v2 work</div>
+          <div class="ws-d">generate_weekly_report.py hardcodes Calibri, ignores template mode, and does not order by hierarchy. Matters only if weekly reports are used.</div>
+          <div class="ws-fix">port the daily generator's brand, template, and ordering logic</div>
+        </div>
+      </div>
+      <div class="ws-row">
+        <span class="sev low">LOW</span>
+        <div class="ws-body">
+          <div class="ws-t">Review-text rate limiter never evicts stale IPs</div>
+          <div class="ws-d">Hit lists are pruned per IP, but old keys stay in the map forever: bounded per IP, unbounded keys.</div>
+          <div class="ws-fix">periodic sweep, or an LRU with a max key count</div>
+        </div>
+      </div>
+      <div class="ws-row">
+        <span class="sev low">LOW</span>
+        <div class="ws-body">
+          <div class="ws-t">Preview PNG cache accumulates stale confighash dirs</div>
+          <div class="ws-d">Every report-config change mints a new hash directory under reports/{date}/preview and nothing prunes the old ones.</div>
+          <div class="ws-fix">keep only the newest hash per date, delete siblings on render</div>
+        </div>
+      </div>
+      <div class="ws-row">
+        <span class="sev low">LOW</span>
+        <div class="ws-body">
+          <div class="ws-t">Light-background templates render token-colored text poorly</div>
+          <div class="ws-d">Imported templates keep CLIO's light text tokens, which vanish on white slides; adopting the theme's text colors is a follow-up.</div>
+          <div class="ws-fix">derive text color from the template theme in template mode</div>
+        </div>
+      </div>
+      <div class="ws-row">
+        <span class="sev low">LOW</span>
+        <div class="ws-body">
+          <div class="ws-t">report_config saves wholesale, so concurrent admins can clobber each other</div>
+          <div class="ws-d">The whole JSON blob is written on save; two open sessions overwrite each other's template settings silently.</div>
+          <div class="ws-fix">merge on write, or a version field with a conflict warning</div>
+        </div>
+      </div>
+      <div class="ws-row">
+        <span class="sev low">LOW</span>
+        <div class="ws-body">
+          <div class="ws-t">WhatsApp timestamps are UTC while the app buckets by Asia/Riyadh</div>
+          <div class="ws-d">Inbox shows browser-local times, and agent reply caps reset at UTC midnight instead of the event's midnight.</div>
+          <div class="ws-fix">store or window timestamps in the configured timezone</div>
+        </div>
+      </div>
+      <div class="ws-row">
+        <span class="sev low">LOW</span>
+        <div class="ws-body">
+          <div class="ws-t">Portal favicon and theme-color meta are hardcoded defaults</div>
+          <div class="ws-d">Both pages ship the slate-and-blue mark regardless of the brand configured in the admin.</div>
+          <div class="ws-fix">emit favicon and theme-color from brand_config</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 06 CONFIG FLOW ================= -->
+  <section>
+    <div class="sec-head"><span class="num">06</span><h2>Config Flow</h2></div>
+    <p class="sec-sub">Runtime behavior is DB-driven and hot; secrets and deployment shape stay in the environment.</p>
+
+    <div class="cf-flow rise">
+      <div class="cf-node">
+        <div class="cf-k">Write</div>
+        <div class="cf-t">Admin console</div>
+        <p>Nine sections write through <span class="m">PUT /api/admin/settings</span> and <span class="m">PUT /api/admin/schedule</span>.</p>
+      </div>
+      <div class="cf-arrow">→</div>
+      <div class="cf-node">
+        <div class="cf-k">Store</div>
+        <div class="cf-t">settings table</div>
+        <p>JSON blobs per key: <span class="m">event_name · event_edition · brand_config · report_config · pm_emails · delivery_config · schedule_config</span></p>
+      </div>
+      <div class="cf-arrow">→</div>
+      <div class="cf-node">
+        <div class="cf-k">Read · Node</div>
+        <div class="cf-t">Server helpers</div>
+        <p>Parsed fresh at request time; no restart needed. Saving the schedule restarts both cron jobs in place.</p>
+      </div>
+      <div class="cf-arrow">→</div>
+      <div class="cf-node">
+        <div class="cf-k">Read · Python</div>
+        <div class="cf-t">generate_report.py</div>
+        <p>Reads the same blobs from SQLite on every run, so each deck reflects the latest brand and slide structure.</p>
+      </div>
+    </div>
+
+    <div class="env-grid rise d1">
+      <div class="env-card">
+        <h4>.env · Core</h4>
+        <ul>
+          <li>EVENT_NAME <span>seed</span></li>
+          <li>EVENT_EDITION <span>seed</span></li>
+          <li>TIMEZONE</li>
+          <li>REPORT_DATE_OVERRIDE <span>testing</span></li>
+          <li>PORT</li>
+          <li>BASE_URL</li>
+        </ul>
+      </div>
+      <div class="env-card">
+        <h4>.env · SMTP + Contacts</h4>
+        <ul>
+          <li>SMTP_HOST / SMTP_PORT</li>
+          <li>SMTP_USER / SMTP_PASS</li>
+          <li>SENDER_NAME</li>
+          <li>PM_EMAILS <span>seed, DB wins</span></li>
+          <li>PM_WHATSAPP</li>
+          <li>DEPT_EMAIL_* / DEPT_WHATSAPP_*</li>
+        </ul>
+      </div>
+      <div class="env-card">
+        <h4>.env · WhatsApp</h4>
+        <ul>
+          <li>WHATSAPP_ENABLED</li>
+          <li>WHATSAPP_PHONE_NUMBER_ID</li>
+          <li>WHATSAPP_ACCESS_TOKEN</li>
+          <li>WHATSAPP_VERIFY_TOKEN</li>
+          <li>WHATSAPP_APP_SECRET</li>
+        </ul>
+      </div>
+      <div class="env-card">
+        <h4>.env · Security + Storage</h4>
+        <ul>
+          <li>ADMIN_PASSWORD</li>
+          <li>REPORT_API_KEY</li>
+          <li>DATA_DIR <span>Railway volume</span></li>
+        </ul>
+      </div>
+    </div>
+    <p class="note-inline">
+      <b>One exception:</b> the Anthropic API key lives inside <code>delivery_config</code> in the DB, set from the Delivery section, not in .env. Both the text polish and the WhatsApp agent read it from there and skip silently when it is absent.
+    </p>
+  </section>
+
+  <footer>
+    <span>CLIO WORKFLOW · SYSTEM MAP</span>
+    <span>GENERATED <span class="fy">2026-08-18</span> · BRANCH <span class="fy">clio-v2</span></span>
+  </footer>
+
+</div>
+</body>
+</html>

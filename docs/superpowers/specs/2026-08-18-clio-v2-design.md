@@ -61,6 +61,15 @@ Design direction as shown in the approved preview: dark, precise show-control ae
   * True tier: a "Render true preview" action generates the real PPTX for a chosen date, rasterizes every slide server-side (LibreOffice headless converts PPTX to PDF, pdftoppm converts pages to PNGs), and shows the actual slide images in the preview pane with a filmstrip navigator. Renders are cached per date + config hash under the data dir and invalidated when config or template changes. If LibreOffice is not installed (typical local dev), the UI degrades gracefully to the instant tier with a notice; the Railway image includes libreoffice and poppler_utils via nixpacks.
   * A "Generate test deck" action still downloads the raw PPTX.
 
+## 2d. HOD accounts and desktop portal layout (added 2026-08-18 per Serge, post-deploy)
+
+* `departments` gains `username` (unique, nullable), `password_hash` (salted scrypt, `salt:hash` hex), `credentials_updated_at`. Passwords are generated server-side (12 chars, unambiguous alphabet), returned exactly once at generation, and only the hash is stored.
+* Admin Departments section: per-department Credentials control: generate (auto username from the department name, editable) and regenerate; the response shows the one-time password with a copy action. `GET /api/admin/departments` exposes `username` and a `has_credentials` flag, never hashes. Endpoints: `POST /api/admin/departments/:id/credentials` `{username?}` and `DELETE` to revoke.
+* Portal login: `POST /api/portal/login` `{username, password}` returns `{token, department}`. Token = HMAC-signed payload `{d: deptId, exp: now + 30 days}` (secret: `SESSION_SECRET` env, fallback derived from `ADMIN_PASSWORD`), stored in localStorage, sent as `x-portal-token`.
+* Protection: `GET /api/submission/:id` requires the token department to match (admin password also accepted), `POST /api/submit` forces `department_id` to the token's department, `POST /api/review-text` requires a valid portal token or admin auth (no longer public). `GET /api/status` stays public (login screen needs brand + event identity; progress numbers are low sensitivity).
+* Portal flow after login: HOD lands on their own department (form or readonly), with the team status list visible read-only; logout control present. Departments without credentials cannot log in; the login screen says to ask the admin.
+* Desktop layout: at 900px and above the portal becomes two-pane (left rail: event identity, deadline, team status; right: the 3-step flow / readonly / success), phone layout unchanged below that.
+
 ## 3. WhatsApp via Meta Cloud API
 
 ### Sending

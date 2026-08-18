@@ -49,9 +49,14 @@ async function renderDeckToImages(pptxPath, outDir) {
     throw new Error(`deck not found: ${pptxPath}`);
   }
 
-  fs.mkdirSync(outDir, { recursive: true });
+  // PNGs land in a sibling staging dir and are promoted to outDir only after
+  // a full successful render, so a crashed pdftoppm can never leave a partial
+  // set behind that the cache would treat as complete.
+  const stageDir = outDir + '.tmp';
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clio-render-'));
   try {
+    fs.rmSync(stageDir, { recursive: true, force: true });
+    fs.mkdirSync(stageDir, { recursive: true });
     await execFileP(
       soffice,
       ['--headless', '--convert-to', 'pdf', '--outdir', tmpDir, pptxPath],
@@ -63,15 +68,18 @@ async function renderDeckToImages(pptxPath, outDir) {
     }
     await execFileP(
       pdftoppm,
-      ['-png', '-r', '96', pdfPath, path.join(outDir, 'slide')],
+      ['-png', '-r', '96', pdfPath, path.join(stageDir, 'slide')],
       { timeout: 120000 }
     );
+    fs.rmSync(outDir, { recursive: true, force: true });
+    fs.renameSync(stageDir, outDir);
     return fs.readdirSync(outDir)
       .filter(f => /^slide.*\.png$/.test(f))
       .sort()
       .map(f => path.join(outDir, f));
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
+    fs.rmSync(stageDir, { recursive: true, force: true });
   }
 }
 

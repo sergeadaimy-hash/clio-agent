@@ -621,8 +621,8 @@ app.delete('/api/admin/departments/:id', requireAdmin, (req, res) => {
 // Uploaded photos served for admin/debug (password-protected via query)
 app.get('/api/admin/photo', requireAdmin, (req, res) => {
   try {
-    const p = req.query.path;
-    if (!p || !p.startsWith(UPLOADS_DIR)) return res.status(400).json({ error: 'bad path' });
+    const p = path.normalize(req.query.path || '');
+    if (!p.startsWith(UPLOADS_DIR + path.sep)) return res.status(400).json({ error: 'bad path' });
     if (!fs.existsSync(p)) return res.status(404).json({ error: 'not found' });
     res.sendFile(p);
   } catch (err) {
@@ -695,18 +695,32 @@ app.get('/api/archive/:date', requireAdmin, (req, res) => {
 });
 
 app.get('/api/archive/:date/:dept/:file', requireAdmin, (req, res) => {
-  const filePath = path.join(UPLOADS_DIR, req.params.date, req.params.dept, req.params.file);
-  if (!filePath.startsWith(UPLOADS_DIR) || !fs.existsSync(filePath)) {
+  const filePath = path.normalize(path.join(UPLOADS_DIR, req.params.date, req.params.dept, req.params.file));
+  if (!filePath.startsWith(UPLOADS_DIR + path.sep) || !fs.existsSync(filePath)) {
     return res.status(404).json({ error: 'not found' });
   }
   res.sendFile(filePath);
 });
 
 // ── LLM Content Review ─────────────────────────────────────
-app.post('/api/review-text', async (req, res) => {
+// Light in-memory rate limit for the public review endpoint
+const reviewHits = new Map();
+function reviewRateLimit(req, res, next) {
+  const ip = req.ip || 'unknown';
+  const now = Date.now();
+  const windowMs = 60_000;
+  const hits = (reviewHits.get(ip) || []).filter(t => now - t < windowMs);
+  if (hits.length >= 20) return res.status(429).json({ polished: req.body?.text || '', error: 'rate limited' });
+  hits.push(now);
+  reviewHits.set(ip, hits);
+  next();
+}
+
+app.post('/api/review-text', reviewRateLimit, async (req, res) => {
   try {
     const { text, field_type } = req.body;
     if (!text || !text.trim()) return res.json({ polished: text || '' });
+    if (text.length > 4000) return res.json({ polished: text, skipped: true });
 
     let apiKey = '';
     try { apiKey = JSON.parse(getSetting('delivery_config') || '{}').anthropic_api_key || ''; } catch {}
@@ -789,13 +803,19 @@ async function sendPendingReminders() {
   const submitted = status.filter(s => s.submitted);
   const pending = status.filter(s => !s.submitted);
   const depts = db.prepare('SELECT * FROM departments').all();
+  const cfg = getScheduleConfig();
+  const ctx = {
+    deadlineText: cfg.deadline_text || `by ${cfg.report_time || '23:00'}`,
+    reportTime: cfg.report_time || '23:00',
+    totalDepartments: depts.length
+  };
 
   const remindedNames = [];
   for (const p of pending) {
     const dept = depts.find(d => d.id === p.id);
     if (!dept) continue;
     try {
-      await notifications.sendReminderToHod(dept, submitted);
+      await notifications.sendReminderToHod(dept, submitted, ctx);
       logAction(dept.id, date, 'reminder_sent');
       remindedNames.push(dept.name);
     } catch (err) {

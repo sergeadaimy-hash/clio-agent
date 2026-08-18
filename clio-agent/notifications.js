@@ -188,37 +188,37 @@ async function notifyPmOnSubmission(dept, submission, stats, statusList) {
   await sendEmail({ to: pmEmails(), subject, html });
 }
 
-// Email 3: 9PM reminder
-async function sendReminderToHod(dept, submittedList) {
-  const subject = `⏰ CLIO Reminder: Daily report due in 2 hours`;
+// Email 3: reminder (deadline pulled from schedule config)
+async function sendReminderToHod(dept, submittedList, ctx = {}) {
+  const deadline = ctx.deadlineText || 'tonight';
+  const total = ctx.totalDepartments || submittedList.length;
+  const subject = `⏰ CLIO Reminder: Daily report due ${deadline}`;
   const submittedNames = submittedList.map(s => s.name).join(', ') || 'None yet';
   const html = htmlShell({
     title: `${dept.name}: Report Due`,
     color: dept.stream_color,
     body: `
-      <p>Your department update is due by <b>11:00 PM</b> tonight.</p>
+      <p>Your department update is due by <b>${escapeHtml(deadline)}</b>.</p>
       <p style="font-size:13px;color:#6B7280;">Departments submitted so far: ${escapeHtml(submittedNames)}</p>
       <p style="margin:24px 0;">
         <a href="${process.env.BASE_URL}" style="background:${dept.stream_color};color:#06080D;padding:14px 24px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block;">Open Portal →</a>
       </p>
-      <p style="font-size:12px;color:#6B7280;">The report generates automatically at 11PM.</p>
+      <p style="font-size:12px;color:#6B7280;">The report generates automatically at ${escapeHtml(ctx.reportTime || 'the scheduled time')}.</p>
     `
   });
   await sendEmail({ to: dept.head_email, subject, html });
 
   const wa = `⏰ CLIO Reminder
-${dept.name}, your daily report is due in 2 hours.
-Submitted so far: ${submittedList.length}/7 departments
-Deadline: 11:00 PM tonight
+${dept.name}, your daily report is due ${deadline}.
+Submitted so far: ${submittedList.length}/${total} departments
 Open the portal:
-${process.env.BASE_URL}
-The report generates automatically at 11PM.`;
+${process.env.BASE_URL}`;
   await sendWhatsApp(dept.head_whatsapp, wa);
 }
 
 // Email 4: 11PM report delivery
 async function sendReportDelivery({ date, reportPath, departments, submissions }) {
-  const eventName = process.env.EVENT_NAME || 'Event';
+  const eventName = (_dbAccessors.getEventName && _dbAccessors.getEventName()) || process.env.EVENT_NAME || 'Event';
   const submittedSubs = submissions.filter(s => s);
   const avg = submittedSubs.length
     ? Math.round(submittedSubs.reduce((a, s) => a + (s.overall_progress || 0), 0) / submittedSubs.length)

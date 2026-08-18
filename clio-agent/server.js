@@ -826,7 +826,10 @@ async function runGenerateWeeklyReport(endDate) {
 
 // ── Cron: reminders + report ───────────────────────────────
 async function sendPendingReminders(onlyDeptId = null) {
-  if (onlyDeptId != null) onlyDeptId = Number(onlyDeptId);
+  if (onlyDeptId != null) {
+    onlyDeptId = Number(onlyDeptId);
+    if (Number.isNaN(onlyDeptId)) throw new Error('invalid department_id');
+  }
   const date = today();
   const status = getStatusList(date);
   const submitted = status.filter(s => s.submitted);

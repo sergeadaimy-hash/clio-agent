@@ -121,6 +121,7 @@
   }
 
   function logout() {
+    if (state.overviewTimer) { clearInterval(state.overviewTimer); state.overviewTimer = null; }
     sessionStorage.removeItem('clio_admin_pw');
     state.pw = '';
     $('shell').hidden = true;

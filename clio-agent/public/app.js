@@ -353,6 +353,12 @@
     el.classList.toggle('show', !!msg);
   }
 
+  function deptLoaded() {
+    if (state.dept) return true;
+    showPortalError('Could not load event data. Check your connection and retry.');
+    return false;
+  }
+
   async function doLogin() {
     const username = $('login-user').value.trim();
     const password = $('login-pass').value;
@@ -565,6 +571,7 @@
   }
 
   function renderStep() {
+    if (!deptLoaded()) return;
     const n = state.step;
     [1, 2, 3].forEach(i => {
       $(`step-${i}`).classList.toggle('active', i === n);
@@ -596,6 +603,7 @@
   }
 
   function goForward() {
+    if (!deptLoaded()) return;
     if (state.step === 2 && !$('status_text').value.trim()) {
       showError("Today's status is required before you continue.");
       $('status_text').focus();
@@ -869,7 +877,7 @@
 
     $('login-btn').addEventListener('click', doLogin);
     ['login-user', 'login-pass'].forEach(id => {
-      $(id).addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+      $(id).addEventListener('keydown', e => { if (e.key === 'Enter' && !$('login-btn').disabled) doLogin(); });
     });
     $('logout-btn').addEventListener('click', () => doLogout());
 

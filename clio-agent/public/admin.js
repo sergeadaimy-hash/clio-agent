@@ -243,7 +243,6 @@
 
     // Fresh overview data invalidates the drawer's archive cache for this date.
     state.archiveCache.delete(date);
-    state.ovDepts = depts;
 
     const byDept = new Map(subs.map(r => [r.department_id, r]));
     const withContact = depts.filter(d => (d.head_email || '').trim() || (d.head_whatsapp || '').trim());
@@ -2067,7 +2066,11 @@
 
     // Credentials modal
     $('cred-copy').addEventListener('click', copyCredentials);
-    $('cred-modal-close').addEventListener('click', () => { $('cred-modal').hidden = true; });
+    $('cred-modal-close').addEventListener('click', () => {
+      // The one-time password must not linger in the hidden DOM.
+      for (const id of ['cred-modal-user', 'cred-modal-pass', 'cred-modal-dept']) $(id).textContent = '';
+      $('cred-modal').hidden = true;
+    });
 
     // Report
     $('report-save').addEventListener('click', saveReport);

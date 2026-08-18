@@ -626,7 +626,10 @@ app.get('/api/admin/whatsapp/threads/:id/messages', requireAdmin, (req, res) => 
 });
 
 app.post('/api/admin/whatsapp/threads/:id/mode', requireAdmin, (req, res) => {
-  const mode = req.body.mode === 'human' ? 'human' : 'agent';
+  const mode = req.body.mode;
+  if (mode !== 'human' && mode !== 'agent') {
+    return res.status(400).json({ error: "mode must be 'human' or 'agent'" });
+  }
   waStore.setMode(req.params.id, mode);
   logAction(null, today(), `wa_thread_${req.params.id}_mode_${mode}`);
   res.json({ success: true, mode });

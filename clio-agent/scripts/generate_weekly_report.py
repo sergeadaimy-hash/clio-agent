@@ -23,9 +23,10 @@ from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import PP_ALIGN
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-DB_PATH = os.path.join(ROOT, "db", "clio.db")
+DATA_DIR = os.environ.get("DATA_DIR", ROOT)
+DB_PATH = os.path.join(DATA_DIR, "db", "clio.db")
 TEMPLATE_PATH = os.path.join(ROOT, "templates", "base_template.pptx")
-REPORTS_ROOT = os.path.join(ROOT, "reports")
+REPORTS_ROOT = os.path.join(DATA_DIR, "reports")
 
 BG = RGBColor(0x0F, 0x17, 0x2A)
 TEXT = RGBColor(0xF1, 0xF5, 0xF9)

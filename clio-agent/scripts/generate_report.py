@@ -25,9 +25,10 @@ from pptx.enum.text import PP_ALIGN
 
 # ── Paths ───────────────────────────────────────────────────
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-DB_PATH = os.path.join(ROOT, "db", "clio.db")
+DATA_DIR = os.environ.get("DATA_DIR", ROOT)
+DB_PATH = os.path.join(DATA_DIR, "db", "clio.db")
 TEMPLATE_PATH = os.path.join(ROOT, "templates", "base_template.pptx")
-REPORTS_ROOT = os.path.join(ROOT, "reports")
+REPORTS_ROOT = os.path.join(DATA_DIR, "reports")
 
 # ── Status colors (semantic, always fixed) ─────────────────
 GREEN = RGBColor(0x4A, 0xDE, 0x80)

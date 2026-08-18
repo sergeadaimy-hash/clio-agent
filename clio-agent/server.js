@@ -15,10 +15,11 @@ const notifications = require('./notifications');
 
 // ── Paths ───────────────────────────────────────────────────
 const ROOT = __dirname;
-const DB_PATH = path.join(ROOT, 'db', 'clio.db');
+const DATA_DIR = process.env.DATA_DIR || ROOT;
+const DB_PATH = path.join(DATA_DIR, 'db', 'clio.db');
 const SCHEMA_PATH = path.join(ROOT, 'db', 'schema.sql');
-const UPLOADS_DIR = path.join(ROOT, 'uploads');
-const REPORTS_DIR = path.join(ROOT, 'reports');
+const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
+const REPORTS_DIR = path.join(DATA_DIR, 'reports');
 
 for (const d of [path.dirname(DB_PATH), UPLOADS_DIR, REPORTS_DIR]) {
   fs.mkdirSync(d, { recursive: true });

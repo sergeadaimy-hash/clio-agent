@@ -263,17 +263,24 @@ async function agentAutoReply(thread, inboundBody) {
   let apiKey = '';
   try { apiKey = JSON.parse(getSetting('delivery_config') || '{}').anthropic_api_key || ''; } catch {}
   if (!apiKey) return null;
-  if (waStore.countAgentRepliesToday(thread.id, new Date().toISOString().slice(0, 10)) >= 5) return null;
+  const datePrefix = new Date().toISOString().slice(0, 10);
+  if (waStore.countAgentRepliesTodayGlobal(datePrefix) >= 50) return null;
+  if (waStore.countAgentRepliesToday(thread.id, datePrefix) >= 5) return null;
 
   const status = getStatusList(today());
   const dept = thread.department_id ? status.find(s => s.id === thread.department_id) : null;
   const cfg = getScheduleConfig();
-  const system = `You are CLIO, the daily reporting assistant for the event "${getEventName()}".
+  const system = thread.department_id
+    ? `You are CLIO, the daily reporting assistant for the event "${getEventName()}".
 You are replying to a department head on WhatsApp. Reply in 1 to 3 short sentences, friendly and factual.
 Only discuss daily report topics: whether they submitted, the deadline, how to submit. If asked anything else, politely redirect to the report.
 Facts: today is ${today()}. Report generation time: ${cfg.report_time || '23:00'}. Portal: ${process.env.BASE_URL || ''}.
 ${dept ? `Their department: ${dept.name}. Submitted today: ${dept.submitted ? 'yes at ' + dept.submitted_at : 'not yet'}.` : ''}
-Submitted so far: ${status.filter(s => s.submitted).length} of ${status.length} departments.`;
+Submitted so far: ${status.filter(s => s.submitted).length} of ${status.length} departments.`
+    : `You are CLIO, the reporting assistant for the event "${getEventName()}".
+This WhatsApp number is not registered for daily reporting. Reply in 1 to 2 short sentences, friendly and factual.
+Tell the sender this number is not set up for daily reporting and that they should contact the production office to get registered.
+Do not mention or include any portal URL, the event schedule, submission counts, or department statuses. Do not guess who they are.`;
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -289,18 +296,31 @@ Submitted so far: ${status.filter(s => s.submitted).length} of ${status.length} 
   } catch { return null; }
 }
 
+const inFlightAgentReplies = new Set();
+
 async function handleInboundWhatsApp(msg) {
+  if (msg.wa_message_id && waStore.findMessageByWaId(msg.wa_message_id)) {
+    console.log('[wa] duplicate delivery ignored');
+    return;
+  }
   const dept = findDeptByWhatsapp(msg.from);
   const thread = waStore.upsertThread(wa.normalizeNumber(msg.from), { name: msg.name, departmentId: dept ? dept.id : null });
-  waStore.recordMessage(thread.id, { direction: 'in', body: msg.body, waMessageId: msg.wa_message_id });
+  waStore.recordMessage(thread.id, { direction: 'in', body: msg.body, messageType: msg.type || 'text', waMessageId: msg.wa_message_id });
   if (thread.mode !== 'agent') return;
-  const replyText = await agentAutoReply(thread, msg.body);
-  if (!replyText) return;
-  const sent = await wa.sendText(msg.from, replyText);
-  waStore.recordMessage(thread.id, {
-    direction: 'out', body: replyText, sentBy: 'agent',
-    waMessageId: sent ? sent.wa_message_id : null, status: sent ? 'sent' : 'failed'
-  });
+  if (msg.type !== 'text') return;
+  if (inFlightAgentReplies.has(thread.id)) return;
+  inFlightAgentReplies.add(thread.id);
+  try {
+    const replyText = await agentAutoReply(thread, msg.body);
+    if (!replyText) return;
+    const sent = await wa.sendText(msg.from, replyText);
+    waStore.recordMessage(thread.id, {
+      direction: 'out', body: replyText, sentBy: 'agent',
+      waMessageId: sent ? sent.wa_message_id : null, status: sent ? 'sent' : 'failed'
+    });
+  } finally {
+    inFlightAgentReplies.delete(thread.id);
+  }
 }
 
 function handleWhatsAppStatus(st) {
@@ -626,12 +646,18 @@ app.get('/api/admin/whatsapp/threads/:id/messages', requireAdmin, (req, res) => 
 });
 
 app.post('/api/admin/whatsapp/threads/:id/mode', requireAdmin, (req, res) => {
+  const threadId = parseInt(req.params.id, 10);
+  if (Number.isNaN(threadId)) {
+    return res.status(400).json({ error: 'invalid thread id' });
+  }
   const mode = req.body.mode;
   if (mode !== 'human' && mode !== 'agent') {
     return res.status(400).json({ error: "mode must be 'human' or 'agent'" });
   }
-  waStore.setMode(req.params.id, mode);
-  logAction(null, today(), `wa_thread_${req.params.id}_mode_${mode}`);
+  const thread = db.prepare('SELECT * FROM whatsapp_threads WHERE id = ?').get(threadId);
+  if (!thread) return res.status(404).json({ error: 'thread not found' });
+  waStore.setMode(threadId, mode);
+  logAction(null, today(), `wa_thread_${threadId}_mode_${mode}`);
   res.json({ success: true, mode });
 });
 

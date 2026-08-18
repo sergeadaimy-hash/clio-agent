@@ -10,6 +10,17 @@ function verifySignature(rawBody, signatureHeader) {
   } catch { return false; }
 }
 
+function timingSafeEqualStrings(a, b) {
+  const bufA = Buffer.from(String(a == null ? '' : a));
+  const bufB = Buffer.from(String(b == null ? '' : b));
+  if (bufA.length !== bufB.length) return false;
+  try {
+    return crypto.timingSafeEqual(bufA, bufB);
+  } catch {
+    return false;
+  }
+}
+
 function parseWebhook(payload) {
   const messages = [];
   const statuses = [];
@@ -40,8 +51,8 @@ function parseWebhook(payload) {
 function mount(app, deps) {
   app.get('/api/whatsapp/webhook', (req, res) => {
     if (req.query['hub.mode'] === 'subscribe' &&
-        req.query['hub.verify_token'] === process.env.WHATSAPP_VERIFY_TOKEN) {
-      return res.send(req.query['hub.challenge']);
+        timingSafeEqualStrings(req.query['hub.verify_token'], process.env.WHATSAPP_VERIFY_TOKEN)) {
+      return res.type('text/plain').send(String(req.query['hub.challenge']));
     }
     res.sendStatus(403);
   });
@@ -57,8 +68,14 @@ function mount(app, deps) {
       const { messages, statuses } = parseWebhook(payload);
       // Respond immediately; process async. Meta retries on non-200.
       res.sendStatus(200);
-      for (const m of messages) Promise.resolve(deps.onInbound(m)).catch(e => console.error('[wa] inbound err:', e.message));
-      for (const s of statuses) Promise.resolve(deps.onStatus(s)).catch(e => console.error('[wa] status err:', e.message));
+      for (const m of messages) {
+        try { Promise.resolve(deps.onInbound(m)).catch(e => console.error('[wa] inbound err:', e.message)); }
+        catch (e) { console.error('[wa] inbound err:', e.message); }
+      }
+      for (const s of statuses) {
+        try { Promise.resolve(deps.onStatus(s)).catch(e => console.error('[wa] status err:', e.message)); }
+        catch (e) { console.error('[wa] status err:', e.message); }
+      }
     });
 }
 

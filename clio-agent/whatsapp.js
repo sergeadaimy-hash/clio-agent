@@ -5,7 +5,8 @@ let _fetch = global.fetch;
 function _setFetch(fn) { _fetch = fn; }
 
 function configured() {
-  return !!(process.env.WHATSAPP_PHONE_NUMBER_ID && process.env.WHATSAPP_ACCESS_TOKEN);
+  return !!(process.env.WHATSAPP_PHONE_NUMBER_ID && process.env.WHATSAPP_ACCESS_TOKEN
+    && process.env.WHATSAPP_ENABLED === 'true');
 }
 
 function normalizeNumber(n) {

@@ -67,4 +67,15 @@ function countAgentRepliesToday(threadId, isoDatePrefix) {
   `).get(threadId, isoDatePrefix + '%').c;
 }
 
-module.exports = { init, upsertThread, recordMessage, updateStatus, setMode, markRead, listThreads, listMessages, countAgentRepliesToday };
+function countAgentRepliesTodayGlobal(isoDatePrefix) {
+  return db.prepare(`
+    SELECT COUNT(*) AS c FROM whatsapp_messages
+    WHERE sent_by = 'agent' AND created_at LIKE ?
+  `).get(isoDatePrefix + '%').c;
+}
+
+function findMessageByWaId(waMessageId) {
+  return db.prepare('SELECT * FROM whatsapp_messages WHERE wa_message_id = ?').get(waMessageId);
+}
+
+module.exports = { init, upsertThread, recordMessage, updateStatus, setMode, markRead, listThreads, listMessages, countAgentRepliesToday, countAgentRepliesTodayGlobal, findMessageByWaId };

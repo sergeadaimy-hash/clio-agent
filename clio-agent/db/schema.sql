@@ -69,3 +69,6 @@ CREATE TABLE IF NOT EXISTS whatsapp_messages (
 );
 
 CREATE INDEX IF NOT EXISTS idx_wa_msgs_thread ON whatsapp_messages(thread_id, id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_msgs_waid
+  ON whatsapp_messages(wa_message_id) WHERE wa_message_id IS NOT NULL;

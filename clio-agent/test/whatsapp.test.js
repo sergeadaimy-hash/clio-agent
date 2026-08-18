@@ -6,6 +6,7 @@ const wa = require('../whatsapp');
 beforeEach(() => {
   process.env.WHATSAPP_PHONE_NUMBER_ID = '111222333';
   process.env.WHATSAPP_ACCESS_TOKEN = 'testtoken';
+  process.env.WHATSAPP_ENABLED = 'true';
 });
 
 test('sendText posts to the Graph API with the right payload', async () => {
@@ -39,6 +40,13 @@ test('returns null and does not throw when unconfigured', async () => {
 
 test('returns null on API error responses', async () => {
   wa._setFetch(async () => ({ ok: false, status: 401, json: async () => ({ error: { message: 'bad token' } }) }));
+  const result = await wa.sendText('+966501234567', 'hello');
+  assert.strictEqual(result, null);
+});
+
+test('kill switch: sendText resolves null without calling fetch when WHATSAPP_ENABLED is unset', async () => {
+  delete process.env.WHATSAPP_ENABLED;
+  wa._setFetch(async () => { throw new Error('fetch should not be called'); });
   const result = await wa.sendText('+966501234567', 'hello');
   assert.strictEqual(result, null);
 });

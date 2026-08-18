@@ -196,6 +196,7 @@
   async function refreshStatus() {
     try {
       const data = await fetchStatus();
+      hideSelectError();
       state.date = data.date;
       state.reportTime = data.report_time || '23:00';
       state.eventName = data.event_name || '';
@@ -228,6 +229,7 @@
       });
     } catch (err) {
       console.error('refreshStatus failed:', err);
+      showSelectError('Could not load event data. Check your connection and retry.');
     }
   }
 
@@ -595,6 +597,10 @@
       const data = await res.json();
       const polished = (data && data.polished) ? String(data.polished).trim() : '';
       if (!polished || polished === text) return;
+      // A submit can land while this request is in flight: handleSubmit clears
+      // the draft, and writing back here (or re-saving a draft) after that
+      // would resurrect stale text that later overlays fresh server data.
+      if (state.submitting || activeScreen() === 'screen-success') return;
       if (el.value.trim() !== text) return; // user kept typing, do not clobber
       el.value = polished;
       el.dataset.reviewed = polished;
@@ -673,7 +679,9 @@
 
   // ── Init ────────────────────────────────────────────────
   function init() {
-    $('select-error-dismiss').addEventListener('click', hideSelectError);
+    // Dismiss also retries: whether the error came from a failed submission
+    // fetch or a failed boot-time status fetch, re-checking is always safe.
+    $('select-error-dismiss').addEventListener('click', () => { hideSelectError(); refreshStatus(); });
     $('ro-back').addEventListener('click', () => { show('screen-select'); refreshStatus(); });
     $('form-back').addEventListener('click', goBack);
     $('btn-continue').addEventListener('click', goForward);

@@ -52,6 +52,12 @@ Design direction as shown in the approved preview: dark, precise show-control ae
 * Model: `departments.parent_id` (nullable, references departments). Every department, parent or child, is a full reporting unit: own HOD, own submission, own report section. Parents with children act as group headers in the portal, admin, and PPTX; a parent with children and no HOD contact simply never submits or gets reminders.
 * Portal: department cards grouped under parent headers. Admin: parent selector in Departments CRUD (only parentless departments are selectable as parents; one level deep). Report: sections ordered parent first, then its children, then the next parent.
 
+## 2c. Report builder: template import, layout guidelines, admin preview (added 2026-08-18 per Serge)
+
+* Template import: the admin Report section gains an "Import template (.pptx)" upload, stored under the data dir (uploads/brand/report_template.pptx). When present and enabled, `generate_report.py` opens it as the base presentation (python-pptx), inheriting slide size, masters, and theme, and appends the generated slides. `report_config.template_mode`: `tokens` (default, current brand-token styling) or `template` (imported template drives the look; a sub-toggle chooses template theme colors vs admin brand colors for chart and text accents).
+* Layout guidelines: `report_config` expands to a builder schema: ordered slide list (cover, overview, department pages, photo pages, schedule) with enable/disable and reorder, plus per-slide options (cover style, logo position, photos per page, page numbers, donut on/off, status badges, timestamps).
+* Admin preview: a live HTML preview pane in the Report section renders an approximation of each enabled slide using the current report config, brand tokens, and real data from the latest submissions; it updates on every config change and is labeled as an approximation. A "Generate test deck" action runs the real generator for a chosen date and downloads the PPTX. No server-side PPTX rasterization (would require LibreOffice; rejected for deploy weight).
+
 ## 3. WhatsApp via Meta Cloud API
 
 ### Sending

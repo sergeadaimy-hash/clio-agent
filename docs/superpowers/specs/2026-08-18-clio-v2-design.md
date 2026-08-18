@@ -26,7 +26,7 @@ Out of scope for this cycle: production WhatsApp number registration (Meta Busin
 
 ## 2. Frontend rebuild ("Control Room Calm")
 
-Design direction as shown in the approved preview: dark, precise show-control aesthetic. Type system: Bricolage Grotesque (display), Sora (UI), JetBrains Mono (data: times, percentages, counts). Status colors (green submitted, amber pending, red blocked) are fixed across brands; brand accent, backgrounds, text, and fonts come from the Brand tab as CSS custom properties injected at page load.
+Design direction as shown in the approved preview: dark, precise show-control aesthetic. Type system (revised per Serge's feedback on 2026-08-18): Sora across the board, with heavy weights (700 to 800) for display headings, and JetBrains Mono for data (times, percentages, counts). Two accents: blue `#3B82F6` for interactive elements (buttons, sliders, progress fills, active states) and yellow `#FACC15` for mono labels, field labels, kickers, and contrast hairlines. Status colors (green submitted, amber pending, red blocked) are fixed across brands; brand accents, backgrounds, text, and fonts come from the Brand tab as CSS custom properties injected at page load.
 
 ### Operator portal (`public/index.html`, mobile first)
 

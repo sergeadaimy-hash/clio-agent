@@ -214,6 +214,7 @@ def slide_overview(prs, date, departments, submissions, brand, C, report, font):
     col_w = Inches(6.2)
     row_h = Inches(0.75)
     gap = Inches(0.1)
+    dept_ids = {d["id"] for d in departments}
     for i, dept in enumerate(departments):
         col = i % 2
         row = i // 2
@@ -222,7 +223,8 @@ def slide_overview(prs, date, departments, submissions, brand, C, report, font):
 
         add_rect(slide, left, top, col_w, row_h, C.PANEL)
         add_rect(slide, left, top, Inches(0.12), row_h, hex_to_rgb(dept["stream_color"]))
-        display_name = ("· " + dept["name"]) if dept.get("parent_id") else dept["name"]
+        is_child = dept.get("parent_id") in dept_ids
+        display_name = ("· " + dept["name"]) if is_child else dept["name"]
         add_text(slide, left + Inches(0.25), top + Inches(0.08),
                  Inches(3.0), Inches(0.35), display_name, size=14, bold=True,
                  color=hex_to_rgb(dept["stream_color"]), font_name=font)
@@ -490,9 +492,11 @@ def build(date):
 
     # Order sections parent-first, then its children, then the next parent:
     # sort key = (parent's id or own id, 0 if this row is a parent else 1, own id).
+    valid_ids = {d["id"] for d in departments}
+
     def dept_sort_key(d):
         parent_id = d.get("parent_id")
-        if parent_id:
+        if parent_id and parent_id in valid_ids:
             return (parent_id, 1, d["id"])
         return (d["id"], 0, d["id"])
 

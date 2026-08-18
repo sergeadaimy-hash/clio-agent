@@ -304,8 +304,10 @@
       box.innerHTML = '<p class="panel-note">No departments configured yet.</p>';
       return;
     }
-    const parents = depts.filter(d => !d.parent_id);
-    const childrenOf = (pid) => depts.filter(d => d.parent_id === pid);
+    const ids = new Set(depts.map(d => d.id));
+    // Orphaned parent_id (target missing) falls back to top-level rendering.
+    const parents = depts.filter(d => !d.parent_id || !ids.has(d.parent_id));
+    const childrenOf = (pid) => depts.filter(d => d.parent_id === pid && ids.has(d.parent_id));
     parents.forEach(p => {
       const kids = childrenOf(p.id);
       if (!kids.length) {
@@ -435,8 +437,10 @@
     list.innerHTML = '';
     if (!depts.length) { list.innerHTML = '<p class="panel-note">No departments yet. Add the first one.</p>'; return; }
 
-    const parents = depts.filter(d => !d.parent_id);
-    const childrenOf = (pid) => depts.filter(d => d.parent_id === pid);
+    const ids = new Set(depts.map(d => d.id));
+    // Orphaned parent_id (target missing) falls back to top-level rendering.
+    const parents = depts.filter(d => !d.parent_id || !ids.has(d.parent_id));
+    const childrenOf = (pid) => depts.filter(d => d.parent_id === pid && ids.has(d.parent_id));
     parents.forEach(p => {
       list.appendChild(deptRow(p, depts));
       childrenOf(p.id).forEach(c => list.appendChild(deptRow(c, depts, { indent: true })));

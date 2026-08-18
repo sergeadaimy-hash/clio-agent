@@ -241,8 +241,10 @@
   function renderDeptList(departments) {
     const list = $('dept-list');
     list.innerHTML = '';
-    const parents = departments.filter(d => !d.parent_id);
-    const childrenOf = (pid) => departments.filter(d => d.parent_id === pid);
+    const ids = new Set(departments.map(d => d.id));
+    // Orphaned parent_id (target missing) falls back to top-level rendering.
+    const parents = departments.filter(d => !d.parent_id || !ids.has(d.parent_id));
+    const childrenOf = (pid) => departments.filter(d => d.parent_id === pid && ids.has(d.parent_id));
 
     parents.forEach(p => {
       const kids = childrenOf(p.id);

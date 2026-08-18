@@ -247,6 +247,11 @@ function parseSchedule(raw) {
   } catch { return []; }
 }
 
+// Placeholder handlers for the webhook mount below; Task 11 replaces
+// these with real DB-backed implementations (whatsapp-store, agent auto-reply).
+function handleInboundWhatsApp(msg) {}
+function handleWhatsAppStatus(st) {}
+
 // ── Multer upload ───────────────────────────────────────────
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -292,7 +297,9 @@ async function savePhotos(files, dept, date) {
 }
 
 // ── Express ─────────────────────────────────────────────────
+const waWebhook = require('./whatsapp-webhook');
 const app = express();
+waWebhook.mount(app, { onInbound: handleInboundWhatsApp, onStatus: handleWhatsAppStatus });
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 app.use(express.static(path.join(ROOT, 'public')));

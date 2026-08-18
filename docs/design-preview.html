@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CLIO Design Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ==========================================================
+   CLIO Design Preview
+   Direction: "Control Room Calm"
+   A show-control aesthetic for live event operations.
+   Dark, precise, legible at 11pm on a festival site.
+   ========================================================== */
+
+:root {
+  /* Product tokens (white-label defaults, all admin-overridable) */
+  --bg: #0F172A;
+  --bg-deep: #0B1120;
+  --panel: #1E293B;
+  --panel-2: #16203A;
+  --border: #2B3A55;
+  --border-soft: #223049;
+  --text: #E2E8F0;
+  --text-dim: #B6C2D6;
+  --muted: #64748B;
+  --accent: #3B82F6;
+  --accent-soft: rgba(59, 130, 246, 0.14);
+  --accent-glow: rgba(59, 130, 246, 0.35);
+  --accent-2: #FACC15;              /* label + hairline accent */
+  --accent-2-soft: rgba(250, 204, 21, 0.14);
+  --green: #34D399;
+  --green-soft: rgba(52, 211, 153, 0.12);
+  --amber: #FBBF24;
+  --amber-soft: rgba(251, 191, 36, 0.12);
+  --red: #F87171;
+  --red-soft: rgba(248, 113, 113, 0.12);
+
+  /* Preview shell tokens */
+  --shell-bg: #070B14;
+  --shell-line: rgba(148, 163, 184, 0.07);
+  --shell-text: #94A3B8;
+
+  --display: "Sora", sans-serif;
+  --ui: "Sora", sans-serif;
+  --mono: "JetBrains Mono", monospace;
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--ui);
+  background:
+    radial-gradient(1200px 600px at 70% -10%, rgba(59,130,246,0.08), transparent 60%),
+    var(--shell-bg);
+  color: var(--text);
+  line-height: 1.55;
+  overflow-x: hidden;
+}
+
+/* faint blueprint grid on the shell */
+body::before {
+  content: "";
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(var(--shell-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--shell-line) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.wrap { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; padding: 0 32px 120px; }
+
+/* ---------- Hero ---------- */
+.hero { padding: 88px 0 40px; }
+.hero .kicker {
+  font-family: var(--mono);
+  font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--accent-2);
+  display: flex; align-items: center; gap: 12px;
+}
+.hero .kicker::before { content: ""; width: 36px; height: 1px; background: var(--accent-2); display: inline-block; }
+.hero h1 {
+  font-family: var(--display);
+  font-size: clamp(44px, 7vw, 88px);
+  font-weight: 800;
+  line-height: 1.0;
+  letter-spacing: -0.02em;
+  margin: 18px 0 20px;
+}
+.hero h1 .thin { font-weight: 400; color: var(--shell-text); }
+.hero p.lede { max-width: 640px; color: var(--text-dim); font-size: 16px; font-weight: 300; }
+.hero p.lede strong { color: var(--text); font-weight: 600; }
+
+.direction-strip {
+  margin-top: 36px;
+  display: flex; flex-wrap: wrap; gap: 10px;
+}
+.direction-strip .chip {
+  font-family: var(--mono); font-size: 12px;
+  padding: 8px 14px; border: 1px solid var(--border);
+  border-radius: 999px; color: var(--text-dim);
+  background: rgba(30, 41, 59, 0.5);
+}
+.direction-strip .chip b { color: var(--accent-2); font-weight: 600; }
+
+/* ---------- Section scaffolding ---------- */
+section { padding-top: 72px; }
+.sec-head { display: flex; align-items: baseline; gap: 18px; margin-bottom: 8px; }
+.sec-head .num {
+  font-family: var(--mono); font-size: 13px; color: var(--accent-2);
+}
+.sec-head h2 {
+  font-family: var(--display); font-weight: 700; font-size: 32px; letter-spacing: -0.01em;
+}
+.sec-sub { color: var(--shell-text); font-size: 14px; font-weight: 300; max-width: 640px; margin-bottom: 36px; }
+
+/* ---------- Foundations ---------- */
+.foundations { display: grid; grid-template-columns: 1.1fr 1fr; gap: 24px; }
+@media (max-width: 900px) { .foundations { grid-template-columns: 1fr; } }
+
+.f-card {
+  border: 1px solid var(--border-soft); border-radius: 16px;
+  background: linear-gradient(180deg, rgba(30,41,59,0.55), rgba(15,23,42,0.55));
+  padding: 28px;
+}
+.f-card h3 {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 20px;
+}
+
+.swatches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.swatch { border-radius: 10px; overflow: hidden; border: 1px solid var(--border-soft); }
+.swatch .color { height: 64px; }
+.swatch .label { padding: 8px 10px; background: rgba(11,17,32,0.8); }
+.swatch .label .name { font-size: 11px; font-weight: 600; }
+.swatch .label .hex { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+
+.type-specimen .row { padding: 14px 0; border-bottom: 1px dashed var(--border-soft); }
+.type-specimen .row:last-child { border-bottom: none; }
+.type-specimen .tag { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.15em; text-transform: uppercase; display: block; margin-bottom: 6px; }
+.spec-display { font-family: var(--display); font-size: 30px; font-weight: 700; letter-spacing: -0.01em; }
+.spec-ui { font-size: 15px; color: var(--text-dim); }
+.spec-mono { font-family: var(--mono); font-size: 14px; color: var(--accent-2); }
+
+.note-inline {
+  margin-top: 16px; font-size: 12.5px; color: var(--shell-text); font-weight: 300;
+  border-left: 2px solid var(--accent-2); padding-left: 12px;
+}
+
+/* ---------- Phone frames ---------- */
+.phones {
+  display: flex; gap: 40px; align-items: flex-start; flex-wrap: wrap;
+}
+.phone-col { flex: 1 1 300px; max-width: 360px; }
+.phone {
+  width: 100%; aspect-ratio: 390 / 780;
+  border-radius: 40px;
+  border: 1px solid #33415C;
+  background: var(--bg);
+  box-shadow:
+    0 0 0 8px #0D1424,
+    0 0 0 9px #2B3A55,
+    0 40px 80px rgba(0,0,0,0.55);
+  overflow: hidden;
+  position: relative;
+  display: flex; flex-direction: column;
+}
+.phone .statusbar {
+  height: 34px; flex: none;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 22px;
+  font-family: var(--mono); font-size: 10.5px; color: var(--muted);
+}
+.phone .notch {
+  position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+  width: 96px; height: 20px; border-radius: 12px; background: #05080F;
+}
+.screen { flex: 1; overflow: hidden; display: flex; flex-direction: column; padding: 8px 18px 0; }
+
+.p-caption { margin-top: 20px; }
+.p-caption .t { font-family: var(--display); font-weight: 700; font-size: 17px; margin-bottom: 6px; }
+.p-caption .d { font-size: 12.5px; color: var(--shell-text); font-weight: 300; }
+
+/* portal shared bits */
+.event-head { padding: 10px 0 14px; }
+.event-head .ev-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.22em; color: var(--accent-2); text-transform: uppercase; }
+.event-head .ev-name { font-family: var(--display); font-weight: 800; font-size: 21px; letter-spacing: -0.01em; margin-top: 3px; }
+.event-head .ev-meta { display: flex; gap: 8px; margin-top: 8px; }
+.pill {
+  font-family: var(--mono); font-size: 9.5px; padding: 4px 9px;
+  border-radius: 999px; border: 1px solid var(--border);
+  color: var(--text-dim); background: rgba(30,41,59,0.6);
+}
+.pill.warn { color: var(--amber); border-color: rgba(251,191,36,0.35); background: var(--amber-soft); }
+
+.dept-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 14px; border-radius: 14px;
+  border: 1px solid var(--border-soft);
+  background: linear-gradient(180deg, rgba(30,41,59,0.75), rgba(22,32,58,0.75));
+  margin-bottom: 9px;
+}
+.dept-card .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.dept-card .dn { font-weight: 600; font-size: 13px; letter-spacing: 0.02em; flex: 1; }
+.dept-card .hod { font-size: 10px; color: var(--muted); display: block; font-weight: 400; margin-top: 1px; }
+.dept-card .st { font-family: var(--mono); font-size: 9px; padding: 4px 8px; border-radius: 6px; }
+.st.ok { color: var(--green); background: var(--green-soft); }
+.st.pending { color: var(--amber); background: var(--amber-soft); }
+.dept-card.active { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* step 2: form */
+.stepper { display: flex; gap: 6px; margin: 4px 0 16px; }
+.stepper .s {
+  flex: 1; height: 3px; border-radius: 2px; background: var(--border);
+}
+.stepper .s.done { background: var(--accent); }
+.form-title { font-family: var(--display); font-weight: 700; font-size: 18px; }
+.form-sub { font-size: 11px; color: var(--muted); margin-bottom: 14px; }
+
+.progress-block {
+  border: 1px solid var(--border-soft); border-radius: 16px;
+  background: var(--panel-2); padding: 16px; margin-bottom: 12px;
+  text-align: center;
+}
+.big-pct { font-family: var(--mono); font-size: 44px; font-weight: 600; color: var(--accent); line-height: 1; }
+.big-pct small { font-size: 18px; color: var(--muted); }
+.slider-track {
+  margin: 16px 6px 6px; height: 10px; border-radius: 6px;
+  background: var(--border); position: relative;
+}
+.slider-fill { position: absolute; inset: 0 28% 0 0; border-radius: 6px; background: linear-gradient(90deg, #2563EB, var(--accent)); }
+.slider-thumb {
+  position: absolute; top: 50%; left: 72%; transform: translate(-50%, -50%);
+  width: 26px; height: 26px; border-radius: 50%;
+  background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.5), 0 0 0 5px var(--accent-soft);
+}
+.slider-scale { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 8.5px; color: var(--muted); margin: 8px 6px 0; }
+
+.field { margin-bottom: 10px; }
+.field label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent-2); display: block; margin-bottom: 5px; }
+.field .input {
+  border: 1px solid var(--border-soft); background: var(--panel-2);
+  border-radius: 12px; padding: 11px 12px; font-size: 12px; color: var(--text-dim);
+  min-height: 40px;
+}
+.field .input.focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); color: var(--text); }
+.autosave { font-family: var(--mono); font-size: 9px; color: var(--green); display: flex; align-items: center; gap: 5px; justify-content: flex-end; margin-top: 4px; }
+
+.cta-bar {
+  margin-top: auto; padding: 12px 0 18px;
+  background: linear-gradient(180deg, transparent, var(--bg) 40%);
+}
+.btn-primary {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: linear-gradient(180deg, #4F8DF7, #2563EB);
+  color: #fff; font-weight: 700; font-size: 14px; font-family: var(--ui);
+  border-radius: 14px; padding: 15px;
+  box-shadow: 0 8px 24px var(--accent-glow);
+}
+.btn-ghost {
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); color: var(--text-dim);
+  border-radius: 14px; padding: 13px; font-size: 13px; font-weight: 600; margin-top: 8px;
+}
+
+/* photos step */
+.photo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.photo-cell {
+  border-radius: 12px; overflow: hidden; border: 1px solid var(--border-soft);
+  background: var(--panel-2);
+}
+.photo-cell .img { height: 72px; position: relative; }
+.photo-cell .img::after {
+  content: ""; position: absolute; inset: 0;
+}
+.ph1 .img { background: linear-gradient(135deg, #1D4ED8 0%, #0EA5E9 60%, #164E63 100%); }
+.ph2 .img { background: linear-gradient(135deg, #7C3AED 0%, #DB2777 70%, #431407 100%); }
+.photo-cell .cap { padding: 7px 9px; font-size: 9.5px; color: var(--text-dim); }
+.photo-cell .cap .cl { font-family: var(--mono); font-size: 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.12em; display: block; margin-bottom: 2px; }
+.photo-add {
+  border: 1.5px dashed var(--border); border-radius: 12px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  color: var(--muted); font-size: 10px; min-height: 108px;
+}
+.photo-add .plus { width: 30px; height: 30px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-size: 18px; font-weight: 300; }
+
+/* success screen */
+.success-center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding-bottom: 40px; }
+.check-ring {
+  width: 88px; height: 88px; border-radius: 50%;
+  background: var(--green-soft); border: 1px solid rgba(52, 211, 153, 0.4);
+  display: grid; place-items: center; margin-bottom: 20px;
+  box-shadow: 0 0 60px rgba(52, 211, 153, 0.15);
+}
+.check-ring svg { width: 40px; height: 40px; stroke: var(--green); }
+.success-center h4 { font-family: var(--display); font-weight: 800; font-size: 22px; margin-bottom: 8px; }
+.success-center p { font-size: 12px; color: var(--muted); max-width: 220px; }
+.receipt {
+  margin-top: 22px; width: 100%;
+  border: 1px solid var(--border-soft); border-radius: 14px; background: var(--panel-2);
+  padding: 14px; text-align: left;
+}
+.receipt .r-row { display: flex; justify-content: space-between; font-size: 11px; padding: 5px 0; }
+.receipt .r-row .k { color: var(--muted); }
+.receipt .r-row .v { font-family: var(--mono); font-size: 10.5px; color: var(--text-dim); }
+
+/* ---------- Desktop frames ---------- */
+.desktop-frame {
+  border-radius: 18px; overflow: hidden;
+  border: 1px solid #33415C;
+  box-shadow: 0 50px 100px rgba(0,0,0,0.5);
+  background: var(--bg);
+  margin-bottom: 18px;
+}
+.browser-bar {
+  height: 42px; background: #0D1424; border-bottom: 1px solid var(--border-soft);
+  display: flex; align-items: center; gap: 8px; padding: 0 16px;
+}
+.browser-bar .b-dot { width: 11px; height: 11px; border-radius: 50%; }
+.browser-bar .url {
+  margin-left: 14px; flex: 1; max-width: 420px;
+  background: var(--panel-2); border-radius: 8px; padding: 6px 14px;
+  font-family: var(--mono); font-size: 11px; color: var(--muted);
+}
+.admin-body { display: flex; min-height: 640px; }
+
+.admin-side {
+  width: 216px; flex: none; background: var(--bg-deep);
+  border-right: 1px solid var(--border-soft);
+  padding: 20px 12px; display: flex; flex-direction: column;
+}
+.logo-lockup { display: flex; align-items: center; gap: 10px; padding: 4px 10px 22px; }
+.logo-mark {
+  width: 34px; height: 34px; border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), #1D4ED8);
+  display: grid; place-items: center;
+  font-family: var(--display); font-weight: 800; font-size: 15px; color: #fff;
+}
+.logo-lockup .l-name { font-family: var(--display); font-weight: 700; font-size: 15px; }
+.logo-lockup .l-sub { font-family: var(--mono); font-size: 8.5px; color: var(--muted); letter-spacing: 0.14em; text-transform: uppercase; display: block; }
+
+.nav-item {
+  display: flex; align-items: center; gap: 11px;
+  padding: 10px 12px; border-radius: 10px;
+  color: var(--muted); font-size: 12.5px; font-weight: 500;
+  margin-bottom: 2px;
+}
+.nav-item svg { width: 15px; height: 15px; stroke: currentColor; flex: none; }
+.nav-item.on { background: var(--accent-soft); color: var(--text); border: 1px solid rgba(59,130,246,0.25); }
+.nav-item.on svg { stroke: var(--accent); }
+.nav-item .badge {
+  margin-left: auto; font-family: var(--mono); font-size: 9px;
+  background: var(--red); color: #fff; border-radius: 999px; padding: 1px 6px;
+}
+.nav-foot { margin-top: auto; padding: 12px 10px 0; border-top: 1px solid var(--border-soft); font-size: 10.5px; color: var(--muted); }
+.nav-foot .env { font-family: var(--mono); font-size: 9px; color: var(--green); }
+
+.admin-main { flex: 1; padding: 26px 30px; background:
+  radial-gradient(800px 300px at 100% 0%, rgba(59,130,246,0.05), transparent 60%),
+  var(--bg);
+}
+.admin-topline { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+.admin-topline h3 { font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: -0.01em; }
+.admin-topline .date-nav { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 11.5px; color: var(--text-dim); }
+.date-nav .arrow { width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 8px; display: grid; place-items: center; color: var(--muted); }
+
+.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+.kpi {
+  border: 1px solid var(--border-soft); border-radius: 14px; background: var(--panel-2);
+  padding: 16px 18px;
+}
+.kpi .k-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+.kpi .k-val { font-family: var(--display); font-weight: 800; font-size: 30px; margin-top: 6px; line-height: 1; }
+.kpi .k-val small { font-size: 14px; color: var(--muted); font-weight: 600; }
+.kpi .k-hint { font-size: 10px; color: var(--muted); margin-top: 6px; }
+.kpi.good .k-val { color: var(--green); }
+.kpi.warn .k-val { color: var(--amber); }
+
+.overview-grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 14px; }
+.panel-box {
+  border: 1px solid var(--border-soft); border-radius: 14px; background: var(--panel-2);
+  padding: 18px;
+}
+.panel-box h4 { font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+
+.sub-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px dashed var(--border-soft); }
+.sub-row:last-child { border-bottom: none; }
+.sub-row .swatch-dot { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.sub-row .sd-name { font-size: 12px; font-weight: 600; width: 130px; }
+.sub-row .bar { flex: 1; height: 6px; border-radius: 4px; background: var(--border); overflow: hidden; }
+.sub-row .bar i { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
+.sub-row .pct { font-family: var(--mono); font-size: 10.5px; color: var(--text-dim); width: 38px; text-align: right; }
+.sub-row .time { font-family: var(--mono); font-size: 9.5px; color: var(--muted); width: 52px; text-align: right; }
+.sub-row.missing .sd-name { color: var(--muted); }
+.sub-row.missing .bar i { background: var(--border); }
+.sub-row .nudge {
+  font-family: var(--mono); font-size: 9px; color: var(--amber);
+  border: 1px solid rgba(251,191,36,0.35); background: var(--amber-soft);
+  padding: 3px 8px; border-radius: 6px;
+}
+
+.donut-wrap { display: flex; align-items: center; gap: 20px; }
+.donut {
+  width: 120px; height: 120px; border-radius: 50%; flex: none;
+  background: conic-gradient(var(--green) 0 270deg, var(--amber) 270deg 315deg, var(--border) 315deg 360deg);
+  display: grid; place-items: center;
+}
+.donut .hole {
+  width: 82px; height: 82px; border-radius: 50%; background: var(--panel-2);
+  display: grid; place-items: center; text-align: center;
+}
+.donut .hole b { font-family: var(--display); font-size: 22px; font-weight: 800; display: block; }
+.donut .hole span { font-family: var(--mono); font-size: 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+.legend { font-size: 11px; color: var(--text-dim); }
+.legend .l-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.legend .l-dot { width: 8px; height: 8px; border-radius: 2px; }
+
+.action-stack { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.action-btn {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid var(--border); border-radius: 10px; padding: 11px 14px;
+  font-size: 12px; font-weight: 600; color: var(--text-dim);
+}
+.action-btn.primary {
+  background: linear-gradient(180deg, #4F8DF7, #2563EB); color: #fff; border: none;
+  box-shadow: 0 6px 18px var(--accent-glow);
+}
+.action-btn .kbd { margin-left: auto; font-family: var(--mono); font-size: 9px; color: var(--muted); }
+.action-btn.primary .kbd { color: rgba(255,255,255,0.7); }
+
+/* WhatsApp inbox */
+.wa-body { display: flex; min-height: 560px; }
+.wa-list { width: 280px; flex: none; border-right: 1px solid var(--border-soft); background: var(--bg-deep); }
+.wa-search { margin: 14px; padding: 9px 12px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--border-soft); font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.wa-thread-item { display: flex; gap: 11px; padding: 12px 14px; border-bottom: 1px solid rgba(43,58,85,0.4); align-items: flex-start; }
+.wa-thread-item.on { background: var(--accent-soft); border-left: 2px solid var(--accent); }
+.avatar {
+  width: 34px; height: 34px; border-radius: 50%; flex: none;
+  display: grid; place-items: center;
+  font-family: var(--display); font-weight: 700; font-size: 12px; color: #fff;
+}
+.wa-thread-item .wt-main { flex: 1; min-width: 0; }
+.wa-thread-item .wt-name { font-size: 12px; font-weight: 600; display: flex; justify-content: space-between; }
+.wa-thread-item .wt-name time { font-family: var(--mono); font-size: 9px; color: var(--muted); font-weight: 400; }
+.wa-thread-item .wt-prev { font-size: 10.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.wa-thread-item .wt-dept { font-family: var(--mono); font-size: 8px; color: var(--accent-2); letter-spacing: 0.1em; }
+.unread-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); margin-top: 5px; }
+
+.wa-chat { flex: 1; display: flex; flex-direction: column; background:
+  radial-gradient(600px 300px at 80% 10%, rgba(59,130,246,0.04), transparent), var(--bg); }
+.wa-chat-head {
+  padding: 14px 20px; border-bottom: 1px solid var(--border-soft);
+  display: flex; align-items: center; gap: 12px;
+}
+.wa-chat-head .wc-name { font-weight: 700; font-size: 13.5px; }
+.wa-chat-head .wc-num { font-family: var(--mono); font-size: 10px; color: var(--muted); display: block; }
+.wa-chat-head .test-badge {
+  margin-left: auto; font-family: var(--mono); font-size: 9px; color: var(--amber);
+  border: 1px solid rgba(251,191,36,0.35); background: var(--amber-soft);
+  padding: 4px 10px; border-radius: 999px;
+}
+.wa-msgs { flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+.day-divider { align-self: center; font-family: var(--mono); font-size: 9px; color: var(--muted); background: var(--panel-2); padding: 4px 12px; border-radius: 999px; border: 1px solid var(--border-soft); }
+.bubble {
+  max-width: 62%; padding: 10px 13px; border-radius: 14px; font-size: 12px; line-height: 1.5;
+  position: relative;
+}
+.bubble .meta { display: flex; gap: 5px; justify-content: flex-end; align-items: center; font-family: var(--mono); font-size: 8.5px; margin-top: 5px; }
+.bubble.out { align-self: flex-end; background: linear-gradient(180deg, #2A4A8F, #1E3A8A); border-bottom-right-radius: 4px; color: #DBEAFE; }
+.bubble.out .meta { color: rgba(219,234,254,0.55); }
+.bubble.out .ticks { color: #60D2FA; letter-spacing: -2px; }
+.bubble.in { align-self: flex-start; background: var(--panel); border: 1px solid var(--border-soft); border-bottom-left-radius: 4px; color: var(--text-dim); }
+.bubble.in .meta { color: var(--muted); }
+.bubble .tpl-tag { font-family: var(--mono); font-size: 8px; color: var(--accent-2); letter-spacing: 0.1em; text-transform: uppercase; display: block; margin-bottom: 4px; }
+.wa-composer {
+  margin: 0 20px 18px; border: 1px solid var(--border-soft); border-radius: 12px;
+  background: var(--panel-2); padding: 11px 14px;
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12px; color: var(--muted);
+}
+.wa-composer .send {
+  margin-left: auto; width: 30px; height: 30px; border-radius: 8px;
+  background: var(--accent); display: grid; place-items: center; color: white; font-size: 13px;
+}
+.takeover-btn {
+  margin-left: 10px; font-size: 11px; font-weight: 700; color: #fff;
+  background: linear-gradient(180deg, #F59E0B, #D97706);
+  padding: 7px 14px; border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+  white-space: nowrap;
+}
+.agent-tag {
+  align-self: flex-start; font-family: var(--mono); font-size: 8px;
+  color: var(--green); letter-spacing: 0.12em; text-transform: uppercase;
+  margin: -4px 0 0 4px;
+}
+
+/* ---------- Annotations ---------- */
+.annos { margin-top: 26px; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.anno {
+  border: 1px solid var(--border-soft); border-radius: 12px; padding: 14px 16px;
+  background: rgba(30, 41, 59, 0.35); font-size: 12.5px; color: var(--text-dim); font-weight: 300;
+}
+.anno b { color: var(--text); font-weight: 600; display: block; margin-bottom: 4px; font-size: 12px; }
+.anno .pin {
+  display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--accent); color: #fff; font-family: var(--mono); font-size: 10px; font-weight: 600;
+  margin-right: 8px; vertical-align: -3px;
+}
+
+.pin-float {
+  position: absolute; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--accent); color: #fff; font-family: var(--mono); font-size: 11px; font-weight: 600;
+  display: grid; place-items: center; z-index: 5;
+  box-shadow: 0 0 0 4px rgba(59,130,246,0.25), 0 4px 12px rgba(0,0,0,0.5);
+}
+
+/* ---------- Reveal animation ---------- */
+@keyframes rise { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
+.rise { animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.d1 { animation-delay: 0.05s; } .d2 { animation-delay: 0.15s; } .d3 { animation-delay: 0.25s; }
+.d4 { animation-delay: 0.35s; } .d5 { animation-delay: 0.45s; }
+
+.frame-holder { overflow-x: auto; padding-bottom: 10px; }
+.frame-inner { min-width: 1080px; position: relative; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ================= HERO ================= -->
+  <header class="hero">
+    <div class="kicker rise">CLIO, Frontend Rebuild, Design Preview</div>
+    <h1 class="rise d1">Control Room<br><span class="thin">Calm.</span></h1>
+    <p class="lede rise d2">
+      A show-control aesthetic for live event operations. Built for two people:
+      the <strong>HOD on a dark festival site at 11pm</strong> who needs to file a report in under two minutes,
+      and the <strong>admin at a desk</strong> who needs the whole event's status at a glance.
+      Every color below is a white-label token, replaceable from the Brand tab.
+    </p>
+    <div class="direction-strip rise d3">
+      <span class="chip">Tone: <b>precise, calm, dark</b></span>
+      <span class="chip">Display: <b>Sora ExtraBold</b></span>
+      <span class="chip">UI: <b>Sora</b></span>
+      <span class="chip">Data: <b>JetBrains Mono</b></span>
+      <span class="chip">Action accent: <b>#3B82F6</b></span>
+      <span class="chip">Label accent: <b>#FACC15</b></span>
+    </div>
+  </header>
+
+  <!-- ================= FOUNDATIONS ================= -->
+  <section>
+    <div class="sec-head"><span class="num">01</span><h2>Foundations</h2></div>
+    <p class="sec-sub">The default white-label theme. Everything here maps to a CSS token that the admin Brand tab overrides per deployment.</p>
+    <div class="foundations">
+      <div class="f-card rise">
+        <h3>Palette / Tokens</h3>
+        <div class="swatches">
+          <div class="swatch"><div class="color" style="background:#0F172A"></div><div class="label"><div class="name">Background</div><div class="hex">#0F172A</div></div></div>
+          <div class="swatch"><div class="color" style="background:#1E293B"></div><div class="label"><div class="name">Panel</div><div class="hex">#1E293B</div></div></div>
+          <div class="swatch"><div class="color" style="background:#3B82F6"></div><div class="label"><div class="name">Accent</div><div class="hex">#3B82F6</div></div></div>
+          <div class="swatch"><div class="color" style="background:#E2E8F0"></div><div class="label"><div class="name">Text</div><div class="hex">#E2E8F0</div></div></div>
+          <div class="swatch"><div class="color" style="background:#34D399"></div><div class="label"><div class="name">Submitted</div><div class="hex">#34D399</div></div></div>
+          <div class="swatch"><div class="color" style="background:#FBBF24"></div><div class="label"><div class="name">Pending</div><div class="hex">#FBBF24</div></div></div>
+          <div class="swatch"><div class="color" style="background:#F87171"></div><div class="label"><div class="name">Blocked</div><div class="hex">#F87171</div></div></div>
+          <div class="swatch"><div class="color" style="background:#FACC15"></div><div class="label"><div class="name">Label</div><div class="hex">#FACC15</div></div></div>
+        </div>
+        <p class="note-inline">Status colors (green, amber, red) stay fixed across brands so operational meaning never changes; only the brand accent, backgrounds, and text tokens rebrand.</p>
+      </div>
+      <div class="f-card rise d1">
+        <h3>Type System</h3>
+        <div class="type-specimen">
+          <div class="row"><span class="tag">Display, Sora 700-800</span><div class="spec-display">Daily Report, Day 14</div></div>
+          <div class="row"><span class="tag">UI, Sora 400-600</span><div class="spec-ui">Rigging completed the north truss ahead of schedule. Two chain hoists remain on order.</div></div>
+          <div class="row"><span class="tag">Data, JetBrains Mono</span><div class="spec-mono">21:47 &nbsp;/&nbsp; 78% &nbsp;/&nbsp; 6 OF 8 SUBMITTED</div></div>
+        </div>
+        <p class="note-inline">Mono is the operational voice: timestamps, percentages, counts, department tags. It makes data instantly scannable against prose. The display font is also admin-overridable.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= HOD PORTAL ================= -->
+  <section>
+    <div class="sec-head"><span class="num">02</span><h2>Operator Portal</h2></div>
+    <p class="sec-sub">Mobile-first, three steps, under two minutes. Rebuilt as a guided flow instead of one long form.</p>
+
+    <div class="phones">
+      <!-- Screen 1: select -->
+      <div class="phone-col rise">
+        <div class="phone">
+          <div class="notch"></div>
+          <div class="statusbar"><span>21:42</span><span>●●●●</span></div>
+          <div class="screen">
+            <div class="event-head">
+              <span class="ev-label">Daily Report</span>
+              <div class="ev-name">Skyline Festival 2026</div>
+              <div class="ev-meta">
+                <span class="pill">MON 18 AUG · DAY 14</span>
+                <span class="pill warn">DEADLINE 23:00 · 1H 18M</span>
+              </div>
+            </div>
+            <div class="dept-card"><span class="dot" style="background:#34D399"></span><div class="dn">STAGE<span class="hod">Karim H.</span></div><span class="st ok">21:12 ✓</span></div>
+            <div class="dept-card active"><span class="dot" style="background:#3B82F6"></span><div class="dn">LIGHTING<span class="hod">Sara M.</span></div><span class="st pending">PENDING</span></div>
+            <div class="dept-card"><span class="dot" style="background:#34D399"></span><div class="dn">AV<span class="hod">Omar T.</span></div><span class="st ok">20:55 ✓</span></div>
+            <div class="dept-card"><span class="dot" style="background:#FBBF24"></span><div class="dn">SCENIC<span class="hod">Lina K.</span></div><span class="st pending">PENDING</span></div>
+            <div class="dept-card"><span class="dot" style="background:#34D399"></span><div class="dn">RIGGING<span class="hod">Faisal A.</span></div><span class="st ok">20:31 ✓</span></div>
+            <div class="dept-card"><span class="dot" style="background:#34D399"></span><div class="dn">LOGISTICS<span class="hod">Dana R.</span></div><span class="st ok">19:58 ✓</span></div>
+          </div>
+        </div>
+        <div class="p-caption">
+          <div class="t">1 · Pick your department</div>
+          <div class="d">Live team status is visible before you even start: who has filed, who is pending, and how long is left before the deadline.</div>
+        </div>
+      </div>
+
+      <!-- Screen 2: form -->
+      <div class="phone-col rise d2">
+        <div class="phone">
+          <div class="notch"></div>
+          <div class="statusbar"><span>21:44</span><span>●●●●</span></div>
+          <div class="screen">
+            <div class="stepper"><span class="s done"></span><span class="s done"></span><span class="s"></span></div>
+            <div class="form-title">Lighting · Progress</div>
+            <div class="form-sub">Step 2 of 3 · Notes</div>
+            <div class="progress-block">
+              <div class="big-pct">72<small>%</small></div>
+              <div class="slider-track"><div class="slider-fill"></div><div class="slider-thumb"></div></div>
+              <div class="slider-scale"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+            </div>
+            <div class="field">
+              <label>Today's status</label>
+              <div class="input focus">Front truss focus complete. Followspot platforms rigged and tested with FOH.</div>
+              <div class="autosave">● draft saved 21:44</div>
+            </div>
+            <div class="field">
+              <label>Highlights</label>
+              <div class="input">Full rig test passed on first run</div>
+            </div>
+            <div class="field">
+              <label>Blockers</label>
+              <div class="input" style="color: var(--muted)">Anything blocking you?</div>
+            </div>
+            <div class="cta-bar"><div class="btn-primary">Continue to Photos →</div></div>
+          </div>
+        </div>
+        <div class="p-caption">
+          <div class="t">2 · Report in three steps</div>
+          <div class="d">Progress, notes, then photos. One thumb, big targets, and every keystroke autosaved locally so a dropped connection on site never loses a report.</div>
+        </div>
+      </div>
+
+      <!-- Screen 3: photos + success -->
+      <div class="phone-col rise d3">
+        <div class="phone">
+          <div class="notch"></div>
+          <div class="statusbar"><span>21:47</span><span>●●●●</span></div>
+          <div class="screen">
+            <div class="stepper"><span class="s done"></span><span class="s done"></span><span class="s done"></span></div>
+            <div class="form-title">Lighting · Photos</div>
+            <div class="form-sub">Step 3 of 3 · Captions appear in the report</div>
+            <div class="photo-grid">
+              <div class="photo-cell ph1"><div class="img"></div><div class="cap"><span class="cl">Caption</span>North truss focus</div></div>
+              <div class="photo-cell ph2"><div class="img"></div><div class="cap"><span class="cl">Caption</span>FOH rig test</div></div>
+              <div class="photo-add"><span class="plus">+</span>Add photo</div>
+              <div class="photo-add" style="opacity:0.4"><span class="plus">+</span>Add photo</div>
+            </div>
+            <div class="success-center" style="flex:none; padding: 10px 0 0;">
+              <div class="check-ring" style="width:64px;height:64px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:28px;height:28px;"><path d="M20 6L9 17l-5-5"/></svg>
+              </div>
+              <h4 style="font-size:17px;">Submitted 21:47</h4>
+              <p style="font-size:11px;">AI has polished your text for the report. You can edit until 23:00.</p>
+            </div>
+            <div class="cta-bar"><div class="btn-ghost">Edit my submission</div></div>
+          </div>
+        </div>
+        <div class="p-caption">
+          <div class="t">3 · Photos, then done</div>
+          <div class="d">Captions are first-class since they print under each photo in the deck. Clear confirmation, timestamp receipt, and one obvious way to edit before the deadline.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="annos">
+      <div class="anno"><b><span class="pin">A</span>Guided steps replace the long form</b>The current portal is one tall scroll. Three focused steps lower the effort at the end of a 14 hour day and raise completion quality.</div>
+      <div class="anno"><b><span class="pin">B</span>Deadline pressure made visible</b>A countdown pill on every screen. Late HODs are the number one operational problem this tool solves; the UI should carry that urgency quietly.</div>
+      <div class="anno"><b><span class="pin">C</span>Offline-tolerant autosave</b>Drafts persist in localStorage per department and date. Site wifi is unreliable; losing a typed report is the fastest way to lose adoption.</div>
+    </div>
+  </section>
+
+  <!-- ================= ADMIN ================= -->
+  <section>
+    <div class="sec-head"><span class="num">03</span><h2>Admin Console</h2></div>
+    <p class="sec-sub">Sidebar navigation replaces the tab strip: nine sections including the new WhatsApp inbox. Overview is a live control surface, not a settings page.</p>
+
+    <div class="frame-holder rise">
+      <div class="frame-inner">
+        <div class="desktop-frame">
+          <div class="browser-bar">
+            <span class="b-dot" style="background:#F87171"></span><span class="b-dot" style="background:#FBBF24"></span><span class="b-dot" style="background:#34D399"></span>
+            <div class="url">clio-production.up.railway.app/admin</div>
+          </div>
+          <div class="admin-body">
+            <aside class="admin-side">
+              <div class="logo-lockup">
+                <div class="logo-mark">C</div>
+                <div><div class="l-name">CLIO</div><span class="l-sub">Skyline Festival</span></div>
+              </div>
+              <div class="nav-item on"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>Overview</div>
+              <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Departments</div>
+              <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 01-9 8.4 8.6 8.6 0 01-3.9-.9L3 20l1-4.9a8.4 8.4 0 1117-3.6z"/></svg>WhatsApp<span class="badge">3</span></div>
+              <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg>Brand</div>
+              <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg>Report</div>
+              <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 8l9 6 9-6M4 6h16a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V7a1 1 0 011-1z"/></svg>Delivery</div>
+              <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Schedule</div>
+              <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 4h16v4H4zM4 12h16v8H4z"/></svg>Archive</div>
+              <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19 12a7 7 0 01-.1 1.2l2 1.6-2 3.4-2.4-1a7 7 0 01-2 1.2L14 21h-4l-.4-2.6a7 7 0 01-2-1.2l-2.5 1-2-3.4 2-1.6A7 7 0 015 12"/></svg>Project</div>
+              <div class="nav-foot">v2.0 · <span class="env">● LIVE ON RAILWAY</span></div>
+            </aside>
+            <main class="admin-main">
+              <div class="admin-topline">
+                <h3>Tonight · Monday 18 August</h3>
+                <div class="date-nav"><span class="arrow">‹</span>2026-08-18<span class="arrow">›</span></div>
+              </div>
+              <div class="kpi-row">
+                <div class="kpi good"><div class="k-label">Submitted</div><div class="k-val">6<small>/8</small></div><div class="k-hint">Scenic + Lighting pending</div></div>
+                <div class="kpi"><div class="k-label">Avg Progress</div><div class="k-val">74<small>%</small></div><div class="k-hint">+6 vs yesterday</div></div>
+                <div class="kpi warn"><div class="k-label">Blockers</div><div class="k-val">2</div><div class="k-hint">Rigging, Logistics</div></div>
+                <div class="kpi"><div class="k-label">Report</div><div class="k-val" style="font-size:16px; padding-top:8px; color:var(--muted)">Runs 23:00</div><div class="k-hint">Auto-email: 4 recipients</div></div>
+              </div>
+              <div class="overview-grid">
+                <div class="panel-box">
+                  <h4>Department Streams</h4>
+                  <div class="sub-row"><span class="swatch-dot" style="background:#F97316"></span><span class="sd-name">STAGE</span><div class="bar"><i style="width:82%"></i></div><span class="pct">82%</span><span class="time">21:12</span></div>
+                  <div class="sub-row"><span class="swatch-dot" style="background:#EAB308"></span><span class="sd-name">RIGGING</span><div class="bar"><i style="width:91%"></i></div><span class="pct">91%</span><span class="time">20:31</span></div>
+                  <div class="sub-row"><span class="swatch-dot" style="background:#22D3EE"></span><span class="sd-name">AV</span><div class="bar"><i style="width:68%"></i></div><span class="pct">68%</span><span class="time">20:55</span></div>
+                  <div class="sub-row"><span class="swatch-dot" style="background:#A78BFA"></span><span class="sd-name">SHOW DIRECTION</span><div class="bar"><i style="width:77%"></i></div><span class="pct">77%</span><span class="time">20:44</span></div>
+                  <div class="sub-row"><span class="swatch-dot" style="background:#34D399"></span><span class="sd-name">LOGISTICS</span><div class="bar"><i style="width:64%"></i></div><span class="pct">64%</span><span class="time">19:58</span></div>
+                  <div class="sub-row"><span class="swatch-dot" style="background:#F472B6"></span><span class="sd-name">OVERLAY</span><div class="bar"><i style="width:70%"></i></div><span class="pct">70%</span><span class="time">21:20</span></div>
+                  <div class="sub-row missing"><span class="swatch-dot" style="background:#64748B"></span><span class="sd-name">LIGHTING</span><div class="bar"><i style="width:0%"></i></div><span class="pct">·</span><span class="nudge">NUDGE</span></div>
+                  <div class="sub-row missing"><span class="swatch-dot" style="background:#64748B"></span><span class="sd-name">SCENIC</span><div class="bar"><i style="width:0%"></i></div><span class="pct">·</span><span class="nudge">NUDGE</span></div>
+                </div>
+                <div class="panel-box">
+                  <h4>Tonight's Report</h4>
+                  <div class="donut-wrap">
+                    <div class="donut"><div class="hole"><div><b>75%</b><span>filed</span></div></div></div>
+                    <div class="legend">
+                      <div class="l-row"><span class="l-dot" style="background:#34D399"></span>6 submitted</div>
+                      <div class="l-row"><span class="l-dot" style="background:#FBBF24"></span>2 pending</div>
+                      <div class="l-row"><span class="l-dot" style="background:#2B3A55"></span>0 skipped</div>
+                    </div>
+                  </div>
+                  <div class="action-stack">
+                    <div class="action-btn primary">⚡ Generate report now<span class="kbd">PPTX</span></div>
+                    <div class="action-btn">✉ Remind pending HODs<span class="kbd">2 WA + EMAIL</span></div>
+                    <div class="action-btn">↓ Download last report<span class="kbd">17 AUG</span></div>
+                  </div>
+                </div>
+              </div>
+            </main>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="annos">
+      <div class="anno"><b><span class="pin">D</span>Sidebar replaces the 8-tab strip</b>Nine sections no longer fit a horizontal tab bar. The sidebar also carries deployment identity: brand lockup on top, environment status at the bottom.</div>
+      <div class="anno"><b><span class="pin">E</span>Overview as control surface</b>The nightly questions come first: who filed, average progress, blockers, when the report runs. Actions sit next to the numbers they act on, including per-department nudges.</div>
+      <div class="anno"><b><span class="pin">F</span>Stream colors carried through</b>Each department's admin-set stream color appears here and in the PPTX, so the deck and the console read as one system.</div>
+    </div>
+  </section>
+
+  <!-- ================= WHATSAPP INBOX ================= -->
+  <section>
+    <div class="sec-head"><span class="num">04</span><h2>WhatsApp Inbox</h2></div>
+    <p class="sec-sub">New admin section backed by the Meta Cloud API test number. Every reminder sent and every HOD reply, logged and threaded per person.</p>
+
+    <div class="frame-holder rise">
+      <div class="frame-inner">
+        <div class="desktop-frame">
+          <div class="browser-bar">
+            <span class="b-dot" style="background:#F87171"></span><span class="b-dot" style="background:#FBBF24"></span><span class="b-dot" style="background:#34D399"></span>
+            <div class="url">clio-production.up.railway.app/admin · WhatsApp</div>
+          </div>
+          <div class="wa-body">
+            <div class="wa-list">
+              <div class="wa-search">⌕&nbsp; Search conversations</div>
+              <div class="wa-thread-item on">
+                <div class="avatar" style="background:linear-gradient(135deg,#F97316,#C2410C)">SM</div>
+                <div class="wt-main">
+                  <div class="wt-name">Sara M. <time>21:39</time></div>
+                  <span class="wt-dept">LIGHTING</span>
+                  <div class="wt-prev">On it, submitting in 15 minutes</div>
+                </div>
+                <span class="unread-dot"></span>
+              </div>
+              <div class="wa-thread-item">
+                <div class="avatar" style="background:linear-gradient(135deg,#22D3EE,#0E7490)">LK</div>
+                <div class="wt-main">
+                  <div class="wt-name">Lina K. <time>21:31</time></div>
+                  <span class="wt-dept">SCENIC</span>
+                  <div class="wt-prev">Reminder: your daily report for Skyline…</div>
+                </div>
+              </div>
+              <div class="wa-thread-item">
+                <div class="avatar" style="background:linear-gradient(135deg,#A78BFA,#6D28D9)">FA</div>
+                <div class="wt-main">
+                  <div class="wt-name">Faisal A. <time>20:02</time></div>
+                  <span class="wt-dept">RIGGING</span>
+                  <div class="wt-prev">Done ✓</div>
+                </div>
+              </div>
+              <div class="wa-thread-item">
+                <div class="avatar" style="background:linear-gradient(135deg,#34D399,#047857)">DR</div>
+                <div class="wt-main">
+                  <div class="wt-name">Dana R. <time>19:41</time></div>
+                  <span class="wt-dept">LOGISTICS</span>
+                  <div class="wt-prev">Reminder: your daily report for Skyline…</div>
+                </div>
+              </div>
+            </div>
+            <div class="wa-chat">
+              <div class="wa-chat-head">
+                <div class="avatar" style="background:linear-gradient(135deg,#F97316,#C2410C)">SM</div>
+                <div><div class="wc-name">Sara M. · Lighting</div><span class="wc-num">+966 5• ••• ••42</span></div>
+                <span class="test-badge">META TEST NUMBER · 5 RECIPIENTS MAX</span>
+                <span class="takeover-btn">✋ Take over</span>
+              </div>
+              <div class="wa-msgs">
+                <div class="day-divider">MON 18 AUG</div>
+                <div class="bubble out">
+                  <span class="tpl-tag">Template · daily_reminder</span>
+                  Hi Sara, this is Skyline Festival daily reporting. Your Lighting report for Day 14 is due at 23:00. Submit here: clio-production.up.railway.app
+                  <div class="meta">21:00 <span class="ticks">✓✓</span></div>
+                </div>
+                <div class="bubble in">
+                  On it, submitting in 15 minutes
+                  <div class="meta">21:39</div>
+                </div>
+                <div class="bubble out">
+                  <span class="tpl-tag">CLIO Agent · auto-reply</span>
+                  Perfect, thank you. 1 hour 21 minutes left before tonight's report is generated.
+                  <div class="meta">21:40 <span class="ticks">✓✓</span></div>
+                </div>
+              </div>
+              <div class="wa-composer" style="color: var(--green); border-color: rgba(52,211,153,0.3);">● CLIO Agent is handling this conversation. Take over to reply yourself.<span class="send" style="background: var(--border); ">➤</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="annos">
+      <div class="anno"><b><span class="pin">G</span>Everything is logged</b>Outbound reminders, delivery ticks from Meta status webhooks, and inbound replies all land in a whatsapp_messages table and render as threads grouped by HOD.</div>
+      <div class="anno"><b><span class="pin">H</span>Test-mode honesty</b>The amber badge shows you are on the Meta test number with its 5 recipient limit, so nobody wonders why a sixth HOD gets nothing. Swapping to a production number later is only an env change.</div>
+      <div class="anno"><b><span class="pin">I</span>Reply from the console</b>The composer sends free-form messages inside Meta's 24 hour customer service window; outside it, CLIO falls back to approved templates automatically.</div>
+      <div class="anno"><b><span class="pin">J</span>Human takeover per thread</b>By default the CLIO agent auto-replies to HOD messages with context-aware answers (deadline, submission status). The amber Take over button switches that thread to human mode: the agent goes silent, the composer unlocks, and a Return to agent action hands the thread back. The mode is stored per conversation and visible in the thread list.</div>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>

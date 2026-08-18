@@ -29,6 +29,10 @@
       </header>
       <div class="team-line rise d1" id="team-line"></div>
       <div class="dept-list rise d2" id="dept-list"></div>
+      <div class="error-banner" id="select-error">
+        <span id="select-error-text"></span>
+        <button type="button" class="btn-dismiss" id="select-error-dismiss" aria-label="Dismiss error">&times;</button>
+      </div>
       <footer class="portal-foot" id="portal-foot" hidden></footer>
     </section>
 
@@ -117,8 +121,8 @@
                     placeholder="Anything blocking you?"></textarea>
         </div>
         <div class="field">
-          <label>Schedule updates <span class="opt">optional</span></label>
-          <div class="sched-rows" id="sched-rows"></div>
+          <span class="field-label" id="sched-label">Schedule updates <span class="opt">optional</span></span>
+          <div class="sched-rows" id="sched-rows" aria-label="Schedule updates, optional"></div>
           <button type="button" class="add-row-btn" id="add-row-btn">+ Add activity</button>
         </div>
       </div>

@@ -107,10 +107,19 @@
 
   // ── Brand injection ─────────────────────────────────────
   function hexToRgb(hex) {
-    const m = String(hex || '').trim().match(/^#?([0-9a-f]{6})$/i);
-    if (!m) return null;
-    const n = parseInt(m[1], 16);
-    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    const s = String(hex || '').trim();
+    let m = s.match(/^#?([0-9a-f]{6})$/i);
+    if (m) {
+      const n = parseInt(m[1], 16);
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    }
+    m = s.match(/^#?([0-9a-f]{3})$/i);
+    if (m) {
+      const expanded = m[1].split('').map(c => c + c).join('');
+      const n = parseInt(expanded, 16);
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    }
+    return null;
   }
 
   function applyBrand(data) {
@@ -133,6 +142,12 @@
     if (rgb) {
       root.setProperty('--accent-soft', `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.14)`);
       root.setProperty('--accent-glow', `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.35)`);
+      // Derive gradient stops for buttons/slider from the brand accent:
+      // a lightened "bright" stop and a darkened "deep" stop.
+      const bright = rgb.map(c => Math.round(c + (255 - c) * 0.12));
+      const deep = rgb.map(c => Math.round(c * 0.88));
+      root.setProperty('--accent-bright', `rgb(${bright[0]},${bright[1]},${bright[2]})`);
+      root.setProperty('--accent-deep', `rgb(${deep[0]},${deep[1]},${deep[2]})`);
     }
     const rgb2 = hexToRgb(b.label_color);
     if (rgb2) root.setProperty('--accent-2-soft', `rgba(${rgb2[0]},${rgb2[1]},${rgb2[2]},0.14)`);
@@ -216,11 +231,26 @@
     }
   }
 
+  function showSelectError(msg) {
+    const el = $('select-error');
+    $('select-error-text').textContent = msg;
+    el.classList.add('show');
+  }
+  function hideSelectError() {
+    $('select-error').classList.remove('show');
+  }
+
   async function openDepartment(dept) {
     state.dept = dept;
+    hideSelectError();
     if (dept.submitted) {
       const sub = await fetchSubmission(dept.id);
       if (sub) return renderReadonly(dept, sub);
+      // Fetch failed: do not fall through to a blank form, which would let
+      // submitting overwrite the department's stored text with empty fields.
+      // Stay on the select screen and surface a dismissible inline error.
+      showSelectError('Could not load your submission. Check your connection and try again.');
+      return;
     }
     enterForm(dept, null, 'screen-select');
   }
@@ -338,6 +368,9 @@
         state.existingPhotos.forEach(p => {
           if (typeof draft.existingCaptions[p.capKey] === 'string') p.caption = draft.existingCaptions[p.capKey];
         });
+      }
+      if (typeof draft.step === 'number' && isFinite(draft.step)) {
+        state.step = Math.min(3, Math.max(1, Math.round(draft.step)));
       }
     }
 
@@ -640,6 +673,7 @@
 
   // ── Init ────────────────────────────────────────────────
   function init() {
+    $('select-error-dismiss').addEventListener('click', hideSelectError);
     $('ro-back').addEventListener('click', () => { show('screen-select'); refreshStatus(); });
     $('form-back').addEventListener('click', goBack);
     $('btn-continue').addEventListener('click', goForward);
